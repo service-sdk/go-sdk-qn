@@ -307,6 +307,36 @@ func (l *Lister) deleteKeysForConfig(ctx context.Context, config *Config, keys [
 	return newSingleClusterLister(config).deleteKeys(ctx, keys, isForce)
 }
 
+// 目录级别的Rename操作
+func (l *Lister) RenameDirectory(srcDir, destDir string) error {
+	// TODO
+	return nil
+}
+
+// 目录级别的Move操作
+func (l *Lister) MoveDirectoryTo(srcDir, destDir string) error {
+	// TODO
+	return nil
+}
+
+// 目录级别的Copy操作
+func (l *Lister) CopyDirectory(srcDir, destDir string) error {
+	// TODO
+	return nil
+}
+
+// 目录级别的Delete操作
+func (l *Lister) DeleteDirectory(dir string) error {
+	// TODO
+	return nil
+}
+
+// 目录级别的强制Delete操作
+func (l *Lister) ForceDeleteDirectory(dir string) error {
+	// TODO
+	return nil
+}
+
 func newSingleClusterLister(c *Config) *singleClusterLister {
 	mac := qbox.NewMac(c.Ak, c.Sk)
 
