@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/ctype.v7"
-	"github.com/qiniupd/qiniu-go-sdk/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/x/ctype.v7"
+	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
 var version = "1.4.0"
@@ -21,7 +21,6 @@ const (
 )
 
 // userApp should be [A-Za-z0-9_\ \-\.]*
-//
 func SetAppName(userApp string) error {
 	if userApp != "" && !ctype.IsType(ctypeAppName, userApp) {
 		return syscall.EINVAL

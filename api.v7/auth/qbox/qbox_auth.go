@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	. "github.com/qiniupd/qiniu-go-sdk/api.v7/conf"
-	"github.com/qiniupd/qiniu-go-sdk/x/bytes.v7/seekable"
+	. "github.com/service-sdk/go-sdk-qn/api.v7/conf"
+	"github.com/service-sdk/go-sdk-qn/x/bytes.v7/seekable"
 )
 
 // ----------------------------------------------------------

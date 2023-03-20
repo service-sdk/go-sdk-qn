@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/qiniupd/qiniu-go-sdk/api.v8/kodo"
+	"github.com/service-sdk/go-sdk-qn/api.v8/kodo"
 )
 
 var uploader Uploader

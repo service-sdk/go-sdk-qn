@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/qiniupd/qiniu-go-sdk/api.v7/auth/qbox"
-	"github.com/qiniupd/qiniu-go-sdk/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
+	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
 var downloadClient = &http.Client{

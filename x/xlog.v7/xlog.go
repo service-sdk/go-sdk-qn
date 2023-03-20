@@ -6,8 +6,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/log.v7"
-	"github.com/qiniupd/qiniu-go-sdk/x/reqid.v7"
+	"github.com/service-sdk/go-sdk-qn/x/log.v7"
+	"github.com/service-sdk/go-sdk-qn/x/reqid.v7"
 
 	. "context"
 )

@@ -12,10 +12,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/qiniupd/qiniu-go-sdk/api.v7/auth/qbox"
-	"github.com/qiniupd/qiniu-go-sdk/api.v7/kodo"
-	"github.com/qiniupd/qiniu-go-sdk/x/httputil.v1"
-	"github.com/qiniupd/qiniu-go-sdk/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
+	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
+	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
+	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
 var (

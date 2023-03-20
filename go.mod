@@ -1,4 +1,4 @@
-module github.com/qiniupd/qiniu-go-sdk
+module github.com/service-sdk/go-sdk-qn
 
 go 1.15
 

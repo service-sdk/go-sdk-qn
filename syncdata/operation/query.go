@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/kirsle/configdir"
-	"github.com/qiniupd/qiniu-go-sdk/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
 var queryClient = &http.Client{

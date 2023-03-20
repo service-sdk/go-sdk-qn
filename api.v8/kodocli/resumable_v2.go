@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/qiniupd/qiniu-go-sdk/api.v8/kodo"
-	"github.com/qiniupd/qiniu-go-sdk/api.v8/limit"
-	"github.com/qiniupd/qiniu-go-sdk/x/httputil.v1"
-	"github.com/qiniupd/qiniu-go-sdk/x/xlog.v8"
+	"github.com/service-sdk/go-sdk-qn/api.v8/kodo"
+	"github.com/service-sdk/go-sdk-qn/api.v8/limit"
+	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
+	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
 )
 
 const minUploadPartSize = 1 << 22
@@ -29,7 +29,7 @@ const completePartsRetryTimes = 5
 
 var ErrMd5NotMatch = httputil.NewError(406, "md5 not match")
 
-//https://github.com/qbox/product/blob/master/kodo/resumable-up-v2/init_parts.md
+// https://github.com/qbox/product/blob/master/kodo/resumable-up-v2/init_parts.md
 func (p Uploader) initParts(ctx context.Context, host, bucket, key string, hasKey bool) (uploadId string, suggestedPartSize int64, err error) {
 	url1 := fmt.Sprintf("%s/buckets/%s/objects/%s/uploads", host, bucket, encodeKey(key, hasKey))
 	ret := struct {
@@ -48,7 +48,7 @@ type UploadPartRet struct {
 	Md5  string `json:"md5"`
 }
 
-//https://github.com/qbox/product/blob/master/kodo/resumable-up-v2/upload_parts.md
+// https://github.com/qbox/product/blob/master/kodo/resumable-up-v2/upload_parts.md
 func (p Uploader) uploadPart(ctx context.Context, host, bucket, key string, hasKey bool, uploadId string, partNum int, body io.Reader, bodyLen int) (ret UploadPartRet, err error) {
 	url1 := fmt.Sprintf("%s/buckets/%s/objects/%s/uploads/%s/%d", host, bucket, encodeKey(key, hasKey), uploadId, partNum)
 	h := md5.New()
@@ -80,7 +80,7 @@ type Part struct {
 	Etag       string `json:"etag"`
 }
 
-//https://github.com/qbox/product/blob/master/kodo/resumable-up-v2/complete_parts.md
+// https://github.com/qbox/product/blob/master/kodo/resumable-up-v2/complete_parts.md
 func (p Uploader) completeParts(ctx context.Context, host string, ret interface{}, bucket, key string, hasKey bool, uploadId string, mPart *CompleteMultipart) error {
 	key = encodeKey(key, hasKey)
 
@@ -116,7 +116,7 @@ func (p *CompleteMultipart) Sort() {
 	sort.Sort(p)
 }
 
-//https://github.com/qbox/product/blob/master/kodo/resumable-up-v2/delete_parts.md
+// https://github.com/qbox/product/blob/master/kodo/resumable-up-v2/delete_parts.md
 func (p Uploader) deleteParts(ctx context.Context, host, bucket, key string, hasKey bool, uploadId string) error {
 	url1 := fmt.Sprintf("%s/buckets/%s/objects/%s/uploads/%s", host, bucket, encodeKey(key, hasKey), uploadId)
 	return p.Conn.Call(ctx, nil, "DELETE", url1)

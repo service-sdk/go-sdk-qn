@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/qiniupd/qiniu-go-sdk/api.v7/kodocli"
-	"github.com/qiniupd/qiniu-go-sdk/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/api.v7/kodocli"
+	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 
 	. "context"
 )
@@ -50,7 +50,6 @@ func (p Bucket) makeUploader() kodocli.Uploader {
 // data    是文件内容的访问接口（io.Reader）。
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 PutExtra 结构的描述。
-//
 func (p Bucket) Put(
 	ctx Context, ret interface{}, key string, data io.Reader, size int64, extra *PutExtra) error {
 
@@ -66,7 +65,6 @@ func (p Bucket) Put(
 // data    是文件内容的访问接口（io.Reader）。
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 PutExtra 结构的描述。
-//
 func (p Bucket) PutWithoutKey(
 	ctx Context, ret interface{}, data io.Reader, size int64, extra *PutExtra) error {
 
@@ -82,7 +80,6 @@ func (p Bucket) PutWithoutKey(
 // ret       是上传成功后返回的数据。返回的是 PutRet 结构。可选，可以传 nil 表示不感兴趣。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 PutExtra 结构的描述。
-//
 func (p Bucket) PutFile(
 	ctx Context, ret interface{}, key, localFile string, extra *PutExtra) (err error) {
 
@@ -98,7 +95,6 @@ func (p Bucket) PutFile(
 // ret       是上传成功后返回的数据。返回的是 PutRet 结构。可选，可以传 nil 表示不感兴趣。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 PutExtra 结构的描述。
-//
 func (p Bucket) PutFileWithoutKey(
 	ctx Context, ret interface{}, localFile string, extra *PutExtra) (err error) {
 
@@ -117,7 +113,6 @@ func (p Bucket) PutFileWithoutKey(
 // data    是文件内容的访问接口。考虑到需要支持分块上传和断点续传，要的是 io.ReaderAt 接口，而不是 io.Reader。
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 RputExtra 结构的描述。
-//
 func (p Bucket) Rput(
 	ctx Context, ret interface{}, key string, data io.ReaderAt, size int64, extra *RputExtra) error {
 
@@ -133,7 +128,6 @@ func (p Bucket) Rput(
 // data    是文件内容的访问接口。考虑到需要支持分块上传和断点续传，要的是 io.ReaderAt 接口，而不是 io.Reader。
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 RputExtra 结构的描述。
-//
 func (p Bucket) RputWithoutKey(
 	ctx Context, ret interface{}, data io.ReaderAt, size int64, extra *RputExtra) error {
 
@@ -150,7 +144,6 @@ func (p Bucket) RputWithoutKey(
 // key       是要上传的文件访问路径。比如："foo/bar.jpg"。注意我们建议 key 不要以 '/' 开头。另外，key 为空字符串是合法的。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 RputExtra 结构的描述。
-//
 func (p Bucket) RputFile(
 	ctx Context, ret interface{}, key, localFile string, extra *RputExtra) (err error) {
 
@@ -166,7 +159,6 @@ func (p Bucket) RputFile(
 // ret       是上传成功后返回的数据。如果 uptoken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 RputExtra 结构的描述。
-//
 func (p Bucket) RputFileWithoutKey(
 	ctx Context, ret interface{}, localFile string, extra *RputExtra) (err error) {
 

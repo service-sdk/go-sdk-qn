@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/xlog.v7"
+	"github.com/service-sdk/go-sdk-qn/x/xlog.v7"
 
 	. "context"
 )
@@ -127,7 +127,6 @@ var once sync.Once
 // f       是文件内容的访问接口。考虑到需要支持分块上传和断点续传，要的是 io.ReaderAt 接口，而不是 io.Reader。
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 RputExtra 结构的描述。
-//
 func (p Uploader) Rput(
 	ctx Context, ret interface{}, uptoken string,
 	key string, f io.ReaderAt, fsize int64, extra *RputExtra) error {
@@ -144,7 +143,6 @@ func (p Uploader) Rput(
 // f       是文件内容的访问接口。考虑到需要支持分块上传和断点续传，要的是 io.ReaderAt 接口，而不是 io.Reader。
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 RputExtra 结构的描述。
-//
 func (p Uploader) RputWithoutKey(
 	ctx Context, ret interface{}, uptoken string, f io.ReaderAt, fsize int64, extra *RputExtra) error {
 
@@ -160,7 +158,6 @@ func (p Uploader) RputWithoutKey(
 // key       是要上传的文件访问路径。比如："foo/bar.jpg"。注意我们建议 key 不要以 '/' 开头。另外，key 为空字符串是合法的。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 RputExtra 结构的描述。
-//
 func (p Uploader) RputFile(
 	ctx Context, ret interface{}, uptoken, key, localFile string, extra *RputExtra) (err error) {
 
@@ -176,7 +173,6 @@ func (p Uploader) RputFile(
 // uptoken   是由业务服务器颁发的上传凭证。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 RputExtra 结构的描述。
-//
 func (p Uploader) RputFileWithoutKey(
 	ctx Context, ret interface{}, uptoken, localFile string, extra *RputExtra) (err error) {
 

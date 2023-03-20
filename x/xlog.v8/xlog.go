@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"context"
-	"github.com/qiniupd/qiniu-go-sdk/x/log.v7"
+	"github.com/service-sdk/go-sdk-qn/x/log.v7"
 )
 
 const logKey = "X-Log"
@@ -95,11 +95,10 @@ func SetGenReqId(f func() string) {
 }
 
 // Born a logger with:
-//	1. provided req id (if @a is reqIder)
-//	2. provided header (if @a is header)
-//	3. provided context (if @a is contexter)
-//	4. **DUMMY** trace recorder (if @a cannot record)
-//
+//  1. provided req id (if @a is reqIder)
+//  2. provided header (if @a is header)
+//  3. provided context (if @a is contexter)
+//  4. **DUMMY** trace recorder (if @a cannot record)
 func NewWith(a interface{}) *Logger {
 
 	var h http.Header
@@ -135,9 +134,8 @@ func NewWith(a interface{}) *Logger {
 }
 
 // Born a logger with:
-// 	1. new random req id
-//	2. **DUMMY** trace recorder (will not record anything)
-//
+//  1. new random req id
+//  2. **DUMMY** trace recorder (will not record anything)
 func NewDummy() *Logger {
 	id := genReqId()
 	return &Logger{
@@ -150,10 +148,10 @@ func NewDummy() *Logger {
 var ForceSpawnCtx bool
 
 // Spawn a child logger with:
-// 	1. same req id with parent
-// 	2. same trace recorder with parent(history compatibility consideration)
-// 	3. a backgroud ctx, so when the xlog.ctx is done, the new xlog can continue
-//	如果需要继承xlog 的生命周期，请使用 SpawnWithCtx
+//  1. same req id with parent
+//  2. same trace recorder with parent(history compatibility consideration)
+//  3. a backgroud ctx, so when the xlog.ctx is done, the new xlog can continue
+//     如果需要继承xlog 的生命周期，请使用 SpawnWithCtx
 func (xlog *Logger) Spawn() *Logger {
 	if ForceSpawnCtx {
 		return xlog.SpawnWithCtx()
@@ -168,12 +166,12 @@ func (xlog *Logger) Spawn() *Logger {
 }
 
 // Spawn a child logger with:
-// 	1. same req id with parent
-// 	2. same trace recorder with parent(history compatibility consideration)
-// 	3. same ctx with parent
-//	Warning: 调用这个方法，新的 routine 将会继承上游请求的生命周期——上游请求关闭，该 routine 也会关闭。
-//	因此，一定要保证新的 routine 在主 routine 之前结束(可以考虑使用 waitgroup 来实现)。
-//	此外，即使两个 routine 看似"同时"关闭，比如使用 multiwriter，也可能会产生问题，因为multiwriter 实际上还是有先后。
+//  1. same req id with parent
+//  2. same trace recorder with parent(history compatibility consideration)
+//  3. same ctx with parent
+//     Warning: 调用这个方法，新的 routine 将会继承上游请求的生命周期——上游请求关闭，该 routine 也会关闭。
+//     因此，一定要保证新的 routine 在主 routine 之前结束(可以考虑使用 waitgroup 来实现)。
+//     此外，即使两个 routine 看似"同时"关闭，比如使用 multiwriter，也可能会产生问题，因为multiwriter 实际上还是有先后。
 func (xlog *Logger) SpawnWithCtx() *Logger {
 	return &Logger{
 		h: http.Header{

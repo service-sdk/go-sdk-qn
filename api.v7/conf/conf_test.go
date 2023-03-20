@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
 func TestUA(t *testing.T) {

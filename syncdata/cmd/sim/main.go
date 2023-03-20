@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
+	"github.com/service-sdk/go-sdk-qn/syncdata/operation"
 )
 
 func main() {
