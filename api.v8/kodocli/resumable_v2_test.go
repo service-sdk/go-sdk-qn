@@ -27,7 +27,7 @@ func TestBlockCount(t *testing.T) {
 		uploader.UploadPartSize + 1: 2,
 	}
 	for fsize, num := range partNumbers {
-		n1 := uploader.partNumber(int64(fsize))
+		n1 := uploader.partNumber(int64(fsize), uploader.UploadPartSize)
 		if n1 != num {
 			t.Fatalf("partNumber failed, fsize: %d, expect part number: %d, but got: %d", fsize, num, n1)
 		}
@@ -151,7 +151,8 @@ func TestStreamUpload(t *testing.T) {
 
 	defer resp.Body.Close()
 	var ret PutRet
-	err = upCli.StreamUpload(context.TODO(), &ret, upToken, key, resp.Body, resp.ContentLength, nil, nil)
+	err = upCli.StreamUpload(context.TODO(), &ret, upToken, key, resp.Body, func(partIdx int, etag string) {
+	})
 	if err != nil {
 		t.Fatalf("up file err: %v", err)
 	}
