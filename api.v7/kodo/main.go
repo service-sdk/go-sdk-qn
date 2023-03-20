@@ -119,7 +119,6 @@ func NewWithoutZone(cfg *Config) (p *Client) {
 
 // 设置全局默认的 ACCESS_KEY, SECRET_KEY 变量。
 func SetMac(accessKey, secretKey string) {
-
 	conf.ACCESS_KEY, conf.SECRET_KEY = accessKey, secretKey
 }
 

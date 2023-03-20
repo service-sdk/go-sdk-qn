@@ -3,6 +3,7 @@ package kodo
 import (
 	"crypto/sha1"
 	"encoding/base64"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"testing"
@@ -56,9 +57,7 @@ func testClient_MakeUptokenBucket(t *testing.T) {
 		Scope:   "gosdk",
 		Expires: 3600,
 	})
-	if token == "" {
-		t.Fatal("nil token")
-	}
+	assert.NotEmpty(t, token)
 
 	token, err := c.MakeUptokenWithSafe(&PutPolicy{
 		Scope:   "NotExistBucket",

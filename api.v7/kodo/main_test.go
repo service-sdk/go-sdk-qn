@@ -1,10 +1,11 @@
 package kodo
 
 import (
-	"fmt"
+	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -56,7 +57,16 @@ func newBucket() (bucket Bucket) {
 	if bucketName == "" || domain == "" {
 		panic("require test env")
 	}
-	client = NewWithoutZone(nil)
+	client = NewWithoutZone(&Config{
+		AccessKey: ak,
+		SecretKey: sk,
+		UpHosts:   strings.Split(os.Getenv("QINIU_TEST_UP_HOSTS"), ","),
+		RSFHost:   os.Getenv("QINIU_TEST_RSF_HOST"),
+		RSHost:    os.Getenv("QINIU_TEST_RS_HOST"),
+		APIHost:   os.Getenv("QINIU_TEST_API_HOST"),
+		IoHost:    os.Getenv("QINIU_TEST_IO_HOST"),
+		Scheme:    "http",
+	})
 
 	return client.Bucket(bucketName)
 }
@@ -78,74 +88,48 @@ func TestFetch(t *testing.T) {
 	}
 
 	err := bucket.Fetch(nil, keyFetch, fetchURL)
-	if err != nil {
-		t.Fatal("bucket.Fetch failed:", err)
-	}
+	assert.NoError(t, err)
 
 	entry, err := bucket.Stat(nil, keyFetch)
-	if err != nil || entry.MimeType != "image/png" {
-		t.Fatal("bucket.Fetch: Stat failed -", err, "entry:", entry)
-	}
-	fmt.Println(entry)
+	assert.NoError(t, err)
+	assert.Equal(t, "image/png", entry.MimeType)
 }
 
 func TestEntry(t *testing.T) {
-
 	if skipTest() {
 		return
 	}
 
 	//上传一个文件用用于测试
 	err := upFile("doc.go", key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	defer bucket.Delete(nil, key)
 
 	einfo, err := bucket.Stat(nil, key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	mime := "text/plain"
 	err = bucket.ChangeMime(nil, key, mime)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	einfo, err = bucket.Stat(nil, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if einfo.MimeType != mime {
-		t.Fatal("mime type did not change")
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, mime, einfo.MimeType)
 
 	err = bucket.Copy(nil, key, newkey1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	enewinfo, err := bucket.Stat(nil, newkey1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if einfo.Hash != enewinfo.Hash {
-		t.Fatal("invalid entryinfo:", einfo, enewinfo)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, einfo.Hash, enewinfo.Hash)
+
 	err = bucket.Move(nil, newkey1, newkey2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	enewinfo2, err := bucket.Stat(nil, newkey2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if enewinfo.Hash != enewinfo2.Hash {
-		t.Fatal("invalid entryinfo:", enewinfo, enewinfo2)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, enewinfo.Hash, enewinfo2.Hash)
 
 	err = bucket.Delete(nil, newkey2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 }
