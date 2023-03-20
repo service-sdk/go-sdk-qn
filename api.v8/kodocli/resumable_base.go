@@ -1,6 +1,7 @@
 package kodocli
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"hash/crc32"
@@ -12,8 +13,6 @@ import (
 	"github.com/service-sdk/go-sdk-qn/x/bytes.v7"
 	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 	"github.com/service-sdk/go-sdk-qn/x/xlog.v7"
-
-	. "context"
 )
 
 // ----------------------------------------------------------
@@ -47,14 +46,14 @@ func newUptokenClient(token string, transport http.RoundTripper) *http.Client {
 // ----------------------------------------------------------
 
 func (p Uploader) mkblk(
-	ctx Context, host string, ret *BlkputRet, blockSize int, body io.Reader, size int) error {
+	ctx context.Context, host string, ret *BlkputRet, blockSize int, body io.Reader, size int) error {
 
 	url := host + "/mkblk/" + strconv.Itoa(blockSize)
 	return p.Conn.CallWith(ctx, ret, "POST", url, "application/octet-stream", body, size)
 }
 
 func (p Uploader) bput(
-	ctx Context, ret *BlkputRet, body io.Reader, size int) error {
+	ctx context.Context, ret *BlkputRet, body io.Reader, size int) error {
 
 	url := ret.Host + "/bput/" + ret.Ctx + "/" + strconv.FormatUint(uint64(ret.Offset), 10)
 	return p.Conn.CallWith(ctx, ret, "POST", url, "application/octet-stream", body, size)
@@ -63,7 +62,7 @@ func (p Uploader) bput(
 // ----------------------------------------------------------
 
 func (p Uploader) resumableBput(
-	ctx Context, host string, ret *BlkputRet, f io.ReaderAt, blkIdx, blkSize int, extra *RputExtra) (err error) {
+	ctx context.Context, host string, ret *BlkputRet, f io.ReaderAt, blkIdx, blkSize int, extra *RputExtra) (err error) {
 
 	xl := xlog.NewWith(ctx)
 	h := crc32.NewIEEE()
@@ -138,7 +137,7 @@ func (p Uploader) resumableBput(
 // ----------------------------------------------------------
 
 func (p Uploader) mkfile(
-	ctx Context, host string, ret interface{}, key string, hasKey bool, fsize int64, extra *RputExtra) (err error) {
+	ctx context.Context, host string, ret interface{}, key string, hasKey bool, fsize int64, extra *RputExtra) (err error) {
 
 	url := host + "/mkfile/" + strconv.FormatInt(fsize, 10)
 

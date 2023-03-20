@@ -1,14 +1,13 @@
 package kodocli
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
 	"sync"
 
 	"github.com/service-sdk/go-sdk-qn/x/xlog.v7"
-
-	. "context"
 )
 
 // ----------------------------------------------------------
@@ -128,7 +127,7 @@ var once sync.Once
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 RputExtra 结构的描述。
 func (p Uploader) Rput(
-	ctx Context, ret interface{}, uptoken string,
+	ctx context.Context, ret interface{}, uptoken string,
 	key string, f io.ReaderAt, fsize int64, extra *RputExtra) error {
 
 	return p.rput(ctx, ret, uptoken, key, true, f, fsize, extra)
@@ -144,7 +143,7 @@ func (p Uploader) Rput(
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 RputExtra 结构的描述。
 func (p Uploader) RputWithoutKey(
-	ctx Context, ret interface{}, uptoken string, f io.ReaderAt, fsize int64, extra *RputExtra) error {
+	ctx context.Context, ret interface{}, uptoken string, f io.ReaderAt, fsize int64, extra *RputExtra) error {
 
 	return p.rput(ctx, ret, uptoken, "", false, f, fsize, extra)
 }
@@ -159,7 +158,7 @@ func (p Uploader) RputWithoutKey(
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 RputExtra 结构的描述。
 func (p Uploader) RputFile(
-	ctx Context, ret interface{}, uptoken, key, localFile string, extra *RputExtra) (err error) {
+	ctx context.Context, ret interface{}, uptoken, key, localFile string, extra *RputExtra) (err error) {
 
 	return p.rputFile(ctx, ret, uptoken, key, true, localFile, extra)
 }
@@ -174,7 +173,7 @@ func (p Uploader) RputFile(
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 RputExtra 结构的描述。
 func (p Uploader) RputFileWithoutKey(
-	ctx Context, ret interface{}, uptoken, localFile string, extra *RputExtra) (err error) {
+	ctx context.Context, ret interface{}, uptoken, localFile string, extra *RputExtra) (err error) {
 
 	return p.rputFile(ctx, ret, uptoken, "", false, localFile, extra)
 }
@@ -182,7 +181,7 @@ func (p Uploader) RputFileWithoutKey(
 // ----------------------------------------------------------
 
 func (p Uploader) rput(
-	ctx Context, ret interface{}, uptoken string,
+	ctx context.Context, ret interface{}, uptoken string,
 	key string, hasKey bool, f io.ReaderAt, fsize int64, extra *RputExtra) error {
 
 	once.Do(initWorkers)
@@ -261,7 +260,7 @@ func (p Uploader) rput(
 }
 
 func (p Uploader) rputFile(
-	ctx Context, ret interface{}, uptoken string,
+	ctx context.Context, ret interface{}, uptoken string,
 	key string, hasKey bool, localFile string, extra *RputExtra) (err error) {
 
 	f, err := os.Open(localFile)

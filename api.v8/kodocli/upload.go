@@ -2,7 +2,7 @@ package kodocli
 
 import (
 	"bytes"
-	. "context"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"hash"
@@ -26,9 +26,9 @@ import (
 // ----------------------------------------------------------
 
 const (
-	DontCheckCrc         uint32 = 0
-	CalcAndCheckCrc             = 1
-	formUploadRetryTimes        = 5
+	DontCheckCrc         = 0
+	CalcAndCheckCrc      = 1
+	formUploadRetryTimes = 5
 )
 
 // 上传的额外可选项
@@ -69,7 +69,7 @@ type PutRet struct {
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 PutExtra 结构的描述。
 func (p Uploader) PutFile(
-	ctx Context, ret interface{}, uptoken, key, localFile string, extra *PutExtra) (err error) {
+	ctx context.Context, ret interface{}, uptoken, key, localFile string, extra *PutExtra) (err error) {
 
 	return p.putFile(ctx, ret, uptoken, key, true, localFile, extra)
 }
@@ -84,13 +84,13 @@ func (p Uploader) PutFile(
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 PutExtra 结构的描述。
 func (p Uploader) PutFileWithoutKey(
-	ctx Context, ret interface{}, uptoken, localFile string, extra *PutExtra) (err error) {
+	ctx context.Context, ret interface{}, uptoken, localFile string, extra *PutExtra) (err error) {
 
 	return p.putFile(ctx, ret, uptoken, "", false, localFile, extra)
 }
 
 func (p Uploader) putFile(
-	ctx Context, ret interface{}, uptoken string,
+	ctx context.Context, ret interface{}, uptoken string,
 	key string, hasKey bool, localFile string, extra *PutExtra) (err error) {
 
 	f, err := os.Open(localFile)
@@ -110,7 +110,7 @@ func (p Uploader) putFile(
 var defaultPutExtra PutExtra
 
 func (p Uploader) put(
-	ctx Context, ret interface{}, uptoken string,
+	ctx context.Context, ret interface{}, uptoken string,
 	key string, hasKey bool, dataReaderAt io.ReaderAt, size int64, extra *PutExtra, fileName string) (err error) {
 
 	if extra == nil {
@@ -207,7 +207,7 @@ lzRetry:
 	}
 	resp, err := p.Conn.Do(ctx, req)
 	if err != nil {
-		if err == Canceled {
+		if err == context.Canceled {
 			return
 		}
 		code := httputil.DetectCode(err)
@@ -336,7 +336,7 @@ func newCrc32Reader(boundary string, h hash.Hash32) *crc32Reader {
 }
 
 func (r *crc32Reader) Read(p []byte) (int, error) {
-	if r.flag == false {
+	if !r.flag {
 		crc32Sum := r.h.Sum32()
 		crc32Line := r.nlDashBoundaryNl + r.header + fmt.Sprintf("%010d", crc32Sum) //padding crc32 results to 10 digits
 		r.r = strings.NewReader(crc32Line)
@@ -361,12 +361,12 @@ func (r crc32Reader) length() (length int64) {
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 PutExtra 结构的描述。
 func (p Uploader) Put2(
-	ctx Context, ret interface{}, uptoken, key string, data io.ReaderAt, size int64, extra *PutExtra) error {
+	ctx context.Context, ret interface{}, uptoken, key string, data io.ReaderAt, size int64, extra *PutExtra) error {
 
 	return p.put2(ctx, ret, uptoken, key, data, size, extra)
 }
 
-func (p Uploader) put2(ctx Context, ret interface{}, uptoken, key string, data io.ReaderAt, size int64,
+func (p Uploader) put2(ctx context.Context, ret interface{}, uptoken, key string, data io.ReaderAt, size int64,
 	extra *PutExtra) error {
 
 	upHost := p.chooseUpHost(make(map[string]struct{}))
