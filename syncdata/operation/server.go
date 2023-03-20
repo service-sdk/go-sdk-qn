@@ -46,17 +46,18 @@ func (s *server) download(res http.ResponseWriter, req *http.Request) {
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		if r.URL.Path == "/stat" {
+		switch r.URL.Path {
+		case "/stat":
 			s.listStat(w, r)
-		} else {
+		default:
 			s.upload(w, r)
 		}
-	case http.MethodHead:
-		fallthrough
-	case http.MethodGet:
-		if r.URL.Path == "/list" {
+
+	case http.MethodGet, http.MethodHead:
+		switch r.URL.Path {
+		case "/list":
 			s.listFiles(w, r)
-		} else {
+		default:
 			s.download(w, r)
 		}
 	default:
