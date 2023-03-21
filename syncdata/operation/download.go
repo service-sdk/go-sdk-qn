@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"io"
 	"io/ioutil"
 	"net"
@@ -106,7 +107,7 @@ func (d *Downloader) DownloadCheckList(ctx context.Context, keys []string) ([]*F
 		}
 	}
 
-	pool := newGoroutinePool(d.multiClustersConcurrency)
+	pool := goroutine_pool.NewGoroutinePool(d.multiClustersConcurrency)
 	allStats := make([]*FileStat, len(keys))
 	for config, keysWithIndex := range clusterPathsMap {
 		func(config *Config, keys []string, indexMap []int) {
@@ -276,7 +277,7 @@ func (d *singleClusterDownloader) downloadCheckList(ctx context.Context, keys []
 		index             int32 = 0
 		failedIoHosts           = make(map[string]struct{})
 		failedIoHostsLock sync.RWMutex
-		pool              = newGoroutinePool(concurrency)
+		pool              = goroutine_pool.NewGoroutinePool(concurrency)
 	)
 
 	for i := 0; i < concurrency; i++ {

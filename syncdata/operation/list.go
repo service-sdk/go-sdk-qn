@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"io"
 	"os"
 	"sort"
@@ -183,7 +184,7 @@ func (l *Lister) listStat(ctx context.Context, keys []string) ([]*FileStat, erro
 		}
 	}
 
-	pool := newGoroutinePool(l.multiClustersConcurrency)
+	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
 	allStats := make([]*FileStat, len(keys))
 	for config, keysWithIndex := range clusterPathsMap {
 		func(config *Config, keys []string, indexMap []int) {
@@ -221,7 +222,7 @@ func (l *Lister) listPrefix(ctx context.Context, prefix string) ([]string, error
 		return l.singleClusterLister.listPrefix(ctx, prefix)
 	}
 
-	pool := newGoroutinePool(l.multiClustersConcurrency)
+	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
 	allKeys := make([]string, 0)
 	var allKeysMutex sync.Mutex
 	l.config.forEachClusterConfig(func(_ string, config *Config) error {
@@ -283,7 +284,7 @@ func (l *Lister) deleteKeys(ctx context.Context, keys []string, isForce bool) ([
 		}
 	}
 
-	pool := newGoroutinePool(l.multiClustersConcurrency)
+	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
 	allErrors := make([]*DeleteKeysError, len(keys))
 	for config, keysWithIndex := range clusterPathsMap {
 		func(config *Config, keys []string, indexMap []int) {
@@ -646,7 +647,7 @@ func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []s
 		failedPathIndexMap []int
 		failedRsHosts      = make(map[string]struct{})
 		failedRsHostsLock  sync.RWMutex
-		pool               = newGoroutinePool(concurrency)
+		pool               = goroutine_pool.NewGoroutinePool(concurrency)
 	)
 
 	for i := 0; i < len(paths); i += l.batchSize {
@@ -736,7 +737,7 @@ func (l *singleClusterLister) renameAsDeleteKeys(ctx context.Context, paths []st
 	var (
 		errors     = make([]*DeleteKeysError, len(paths))
 		errorsLock sync.Mutex
-		pool       = newGoroutinePool(l.batchConcurrency)
+		pool       = goroutine_pool.NewGoroutinePool(l.batchConcurrency)
 	)
 	for i := 0; i < len(paths); i += 1 {
 		func(index int) {
@@ -776,7 +777,7 @@ func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context,
 		failedPathIndexMap []int
 		failedRsHosts      = make(map[string]struct{})
 		failedRsHostsLock  sync.RWMutex
-		pool               = newGoroutinePool(concurrency)
+		pool               = goroutine_pool.NewGoroutinePool(concurrency)
 	)
 
 	for i := 0; i < len(paths); i += l.batchSize {

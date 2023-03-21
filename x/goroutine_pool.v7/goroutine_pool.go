@@ -1,4 +1,4 @@
-package operation
+package goroutine_pool
 
 import (
 	"context"
@@ -6,20 +6,20 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type goroutinePool struct {
+type GoroutinePool struct {
 	workers           []func(context.Context) error
 	maxGoroutineCount int
 }
 
-func newGoroutinePool(maxGoroutineCount int) *goroutinePool {
-	return &goroutinePool{maxGoroutineCount: maxGoroutineCount}
+func NewGoroutinePool(maxGoroutineCount int) *GoroutinePool {
+	return &GoroutinePool{maxGoroutineCount: maxGoroutineCount}
 }
 
-func (pool *goroutinePool) Go(worker func(context.Context) error) {
+func (pool *GoroutinePool) Go(worker func(context.Context) error) {
 	pool.workers = append(pool.workers, worker)
 }
 
-func (pool *goroutinePool) Wait(ctx context.Context) error {
+func (pool *GoroutinePool) Wait(ctx context.Context) error {
 	group, ctx := errgroup.WithContext(ctx)
 	workersChan := make(chan func(context.Context) error)
 

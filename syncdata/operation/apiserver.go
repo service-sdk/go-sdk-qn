@@ -3,6 +3,7 @@ package operation
 import (
 	"context"
 	"fmt"
+	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"net/http"
 	"os"
 	"strconv"
@@ -60,7 +61,7 @@ func (svr *ApiServer) getLogicalAvailableSizes(ctx context.Context) (map[string]
 		return map[string]uint64{DefaultPathPrefix: size}, nil
 	}
 
-	pool := newGoroutinePool(svr.multiClustersConcurrency)
+	pool := goroutine_pool.NewGoroutinePool(svr.multiClustersConcurrency)
 	sizes := make(map[string]uint64)
 	var sizesLock sync.Mutex
 	svr.config.forEachClusterConfig(func(pathPrefix string, config *Config) error {
