@@ -58,9 +58,5 @@ type AuthPolicy struct {
 
 func MakeAuthTokenString(key, secret string, auth *AuthPolicy) string {
 	b, _ := json.Marshal(auth)
-	mac := &digest.Mac{
-		AccessKey: key,
-		SecretKey: []byte(secret),
-	}
-	return mac.SignWithData(b)
+	return digest.NewMac(key, secret).SignWithData(b)
 }

@@ -37,7 +37,7 @@ func (p Bucket) makeUptokenWithoutKey() string {
 func (p Bucket) makeUploader() kodocli.Uploader {
 
 	c := &http.Client{Transport: p.Conn.Transport, Timeout: 10 * time.Minute}
-	return kodocli.Uploader{Conn: rpc.Client{c}, UpHosts: p.Conn.UpHosts}
+	return kodocli.Uploader{Conn: rpc.Client{Client: c}, UpHosts: p.Conn.UpHosts}
 }
 
 // ----------------------------------------------------------

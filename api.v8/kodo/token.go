@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
 	"github.com/service-sdk/go-sdk-qn/x/url.v7"
 )
 
@@ -45,7 +44,7 @@ func (p *Client) MakePrivateUrl(baseUrl string, policy *GetPolicy) (privateUrl s
 	}
 	baseUrl += strconv.FormatInt(deadline, 10)
 
-	token := qbox.Sign(p.mac, []byte(baseUrl))
+	token := p.mac.Sign([]byte(baseUrl))
 	return baseUrl + "&token=" + token
 }
 
@@ -90,7 +89,7 @@ func (p *Client) MakeUptoken(policy *PutPolicy) string {
 	}
 	rr.Expires += uint32(time.Now().Unix())
 	b, _ := json.Marshal(&rr)
-	return qbox.SignWithData(p.mac, b)
+	return p.mac.SignWithData(b)
 }
 
 func ParseUptoken(uptoken string) (policy PutPolicy, err error) {
