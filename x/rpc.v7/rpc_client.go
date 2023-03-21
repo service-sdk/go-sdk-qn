@@ -4,34 +4,28 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
-
-	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
 
 	. "context"
 )
 
-var UserAgent string
-
 var (
 	ErrInvalidRequestURL = errors.New("invalid request url")
+	DefaultUserAgent     = ""
 )
 
 // --------------------------------------------------------------------
 
 type Client struct {
 	*http.Client
+	UserAgent *string
 }
-
-var (
-	DefaultClient = Client{&http.Client{Transport: http.DefaultTransport, Timeout: 10 * time.Minute}}
-)
 
 // --------------------------------------------------------------------
 
@@ -133,7 +127,12 @@ func (r Client) Do(ctx Context, req *http.Request) (resp *http.Response, err err
 	req.Header.Set("X-Reqid", xl.ReqId())
 
 	if _, ok := req.Header["User-Agent"]; !ok {
-		req.Header.Set("User-Agent", UserAgent)
+		// 优先使用Client.UserAgent
+		if r.UserAgent != nil {
+			req.Header.Set("User-Agent", *r.UserAgent)
+		} else {
+			req.Header.Set("User-Agent", DefaultUserAgent)
+		}
 	}
 
 	transport := r.Transport // don't change r.Transport
