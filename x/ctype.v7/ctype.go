@@ -33,17 +33,18 @@ const (
 )
 
 const (
-	BLANK                = SPACE_BAR
-	TSPACE               = TAB | EOL
-	SPACE                = SPACE_BAR | TSPACE
-	PATH_SEP             = DIV | RDIV
-	ALPHA                = UPPER | LOWER
-	SYMBOL_FIRST_CHAR    = ALPHA
-	SYMBOL_NEXT_CHAR     = SYMBOL_FIRST_CHAR | DIGIT
-	CSYMBOL_FIRST_CHAR   = ALPHA | UNDERLINE
-	CSYMBOL_NEXT_CHAR    = CSYMBOL_FIRST_CHAR | DIGIT
-	XMLSYMBOL_FIRST_CHAR = CSYMBOL_FIRST_CHAR
-	XMLSYMBOL_NEXT_CHAR  = CSYMBOL_NEXT_CHAR | SUB
+	BLANK             = SPACE_BAR
+	TSPACE            = TAB | EOL
+	SPACE             = SPACE_BAR | TSPACE
+	PATH_SEP          = DIV | RDIV
+	ALPHA             = UPPER | LOWER
+	SYMBOL_FIRST_CHAR = ALPHA
+	SYMBOL_NEXT_CHAR  = SYMBOL_FIRST_CHAR | DIGIT
+
+	CSYMBOL_FIRST_CHAR   = ALPHA | UNDERLINE          // 大小写字符、下划线构成
+	CSYMBOL_NEXT_CHAR    = CSYMBOL_FIRST_CHAR | DIGIT // 大小写字符、下划线、数字构成
+	XMLSYMBOL_FIRST_CHAR = CSYMBOL_FIRST_CHAR         // 大小写字符、下划线构成
+	XMLSYMBOL_NEXT_CHAR  = CSYMBOL_NEXT_CHAR | SUB    // 大小写字符、下划线、数字、减号所构成
 	DOMAIN_CHAR          = ALPHA | DIGIT | SUB | ADD | DOT
 	BASE64               = ALPHA | DIGIT | ADD | DIV       // [a-zA-Z0-9+/]
 	URLSAFE_BASE64       = ALPHA | DIGIT | SUB | UNDERLINE // [a-zA-Z0-9\-_]
@@ -182,8 +183,8 @@ var table = []uint32{
 	0,              // del [127]
 }
 
-// -----------------------------------------------------------
-
+// Is 判断某个字符是否属于该 typeMask 对应的字符类型
+// typeMask: 字符类型掩码
 func Is(typeMask uint32, c rune) bool {
 
 	if uint(c) < uint(len(table)) {
@@ -192,6 +193,9 @@ func Is(typeMask uint32, c rune) bool {
 	return false
 }
 
+// IsType 判断字符串是否属于该 typeMask 对应的字符类型
+// typeMask: 字符类型掩码
+// NOTE: 空字符串返回 false
 func IsType(typeMask uint32, str string) bool {
 
 	if str == "" {
@@ -205,18 +209,21 @@ func IsType(typeMask uint32, str string) bool {
 	return true
 }
 
+// IsTypeEx 判断字符串是否属于该 typeMask 对应的字符类型
+// typeFirst: 第一个字符的类型
+// typeNext: 除第一个字符外的其他字符的类型
+// NOTE: 空字符串返回 false
 func IsTypeEx(typeFirst, typeNext uint32, str string) bool {
-
 	if str == "" {
 		return false
 	}
 	for i, c := range str {
-		if i > 0 {
-			if !Is(typeNext, c) {
+		if i == 0 {
+			if !Is(typeFirst, c) {
 				return false
 			}
 		} else {
-			if !Is(typeFirst, c) {
+			if !Is(typeNext, c) {
 				return false
 			}
 		}
@@ -224,14 +231,14 @@ func IsTypeEx(typeFirst, typeNext uint32, str string) bool {
 	return true
 }
 
+// IsCSymbol 判断字符串是否符合C语言的标识符
 func IsCSymbol(str string) bool {
 
 	return IsTypeEx(CSYMBOL_FIRST_CHAR, CSYMBOL_NEXT_CHAR, str)
 }
 
+// IsXmlSymbol 判断字符串是否符合XML的标识符
 func IsXmlSymbol(str string) bool {
 
 	return IsTypeEx(XMLSYMBOL_FIRST_CHAR, XMLSYMBOL_NEXT_CHAR, str)
 }
-
-// -----------------------------------------------------------
