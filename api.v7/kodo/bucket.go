@@ -9,25 +9,18 @@ import (
 	"strconv"
 )
 
-// ----------------------------------------------------------
-
-// 批量操作。
-//
+// Batch 批量操作
 func (p *Client) Batch(ctx context.Context, ret interface{}, op []string) (err error) {
 	return p.CallWithForm(ctx, ret, "POST", p.RSHost+"/batch", map[string][]string{"op": op})
 }
-
-// ----------------------------------------------------------
 
 type Bucket struct {
 	Conn *Client
 	Name string
 }
 
-// 取七牛空间（bucket）的对象实例。
-//
-// name 是创建该七牛空间（bucket）时采用的名称。
-//
+// Bucket 取七牛空间（bucket）的对象实例
+// @param name 是创建该七牛空间（bucket）时采用的名称。
 func (p *Client) Bucket(name string) Bucket {
 	return Bucket{Conn: p, Name: name}
 }
@@ -40,82 +33,66 @@ type Entry struct {
 	EndUser  string `json:"endUser"`
 }
 
-// 取文件属性。
-//
-// ctx 是请求的上下文。
-// key 是要访问的文件的访问路径。
-//
+// Stat 取文件属性
+// @param ctx 是请求的上下文
+// @param key 是要访问的文件的访问路径
 func (p Bucket) Stat(ctx context.Context, key string) (entry Entry, err error) {
 	err = p.Conn.Call(ctx, &entry, "POST", p.Conn.RSHost+URIStat(p.Name, key))
 	return
 }
 
-// 删除一个文件。
-//
-// ctx 是请求的上下文。
-// key 是要删除的文件的访问路径。
-//
+// Delete 删除一个文件
+// @param ctx 是请求的上下文
+// @param key 是要删除的文件的访问路径
 func (p Bucket) Delete(ctx context.Context, key string) (err error) {
 	return p.Conn.Call(ctx, nil, "POST", p.Conn.RSHost+URIDelete(p.Name, key))
 }
 
-// 移动一个文件。
-//
-// ctx     是请求的上下文。
-// keySrc  是要移动的文件的旧路径。
-// keyDest 是要移动的文件的新路径。
-//
+// Move 移动一个文件。
+// @param ctx     是请求的上下文。
+// @param keySrc  是要移动的文件的旧路径。
+// @param keyDest 是要移动的文件的新路径。
 func (p Bucket) Move(ctx context.Context, keySrc, keyDest string) (err error) {
 	return p.Conn.Call(ctx, nil, "POST", p.Conn.RSHost+URIMove(p.Name, keySrc, p.Name, keyDest))
 }
 
-// 重命名一个文件。
-//
-// ctx     是请求的上下文。
-// keySrc  是要移动的文件的旧路径。
-// keyDest 是要移动的文件的新路径。
-//
+// Rename 重命名一个文件。
+// @param ctx     是请求的上下文。
+// @param keySrc  是要移动的文件的旧路径。
+// @param keyDest 是要移动的文件的新路径。
 func (p Bucket) Rename(ctx context.Context, keySrc, keyDest string) (err error) {
 	return p.Conn.Call(ctx, nil, "POST", p.Conn.APIHost+URIRename(p.Name, keySrc, p.Name, keyDest))
 }
 
-// 跨空间（bucket）移动一个文件。
-//
-// ctx        是请求的上下文。
-// keySrc     是要移动的文件的旧路径。
-// bucketDest 是文件的目标空间。
-// keyDest    是要移动的文件的新路径。
-//
+// MoveEx 跨空间（bucket）移动一个文件。
+// @param ctx        是请求的上下文。
+// @param keySrc     是要移动的文件的旧路径。
+// @param bucketDest 是文件的目标空间。
+// @param keyDest    是要移动的文件的新路径。
 func (p Bucket) MoveEx(ctx context.Context, keySrc, bucketDest, keyDest string) (err error) {
 	return p.Conn.Call(ctx, nil, "POST", p.Conn.RSHost+URIMove(p.Name, keySrc, bucketDest, keyDest))
 }
 
-// 复制一个文件。
-//
-// ctx     是请求的上下文。
-// keySrc  是要复制的文件的源路径。
-// keyDest 是要复制的文件的目标路径。
-//
+// Copy 复制一个文件。
+// @param ctx     是请求的上下文。
+// @param keySrc  是要复制的文件的源路径。
+// @param keyDest 是要复制的文件的目标路径。
 func (p Bucket) Copy(ctx context.Context, keySrc, keyDest string) (err error) {
 	return p.Conn.Call(ctx, nil, "POST", p.Conn.RSHost+URICopy(p.Name, keySrc, p.Name, keyDest))
 }
 
-// 修改文件的MIME类型。
-//
-// ctx  是请求的上下文。
-// key  是要修改的文件的访问路径。
-// mime 是要设置的新MIME类型。
-//
+// ChangeMime 修改文件的MIME类型。
+// @param ctx  是请求的上下文。
+// @param key  是要修改的文件的访问路径。
+// @param mime 是要设置的新MIME类型。
 func (p Bucket) ChangeMime(ctx context.Context, key, mime string) (err error) {
 	return p.Conn.Call(ctx, nil, "POST", p.Conn.RSHost+URIChangeMime(p.Name, key, mime))
 }
 
-// 从网上抓取一个资源并存储到七牛空间（bucket）中。
-//
-// ctx 是请求的上下文。
-// key 是要存储的文件的访问路径。如果文件已经存在则覆盖。
-// url 是要抓取的资源的URL。
-//
+// Fetch 从网上抓取一个资源并存储到七牛空间（bucket）中
+// @param ctx 是请求的上下文
+// @param key 是要存储的文件的访问路径。如果文件已经存在则覆盖
+// @param url 是要抓取的资源的URL
 func (p Bucket) Fetch(ctx context.Context, key string, url string) (err error) {
 	return p.Conn.Call(ctx, nil, "POST", p.Conn.IoHost+uriFetch(p.Name, key, url))
 }
@@ -131,10 +108,9 @@ type ListItem struct {
 	EndUser  string `json:"endUser"`
 }
 
-// 首次请求，请将 marker 设置为 ""。
+// List 首次请求，请将 marker 设置为 ""。
 // 无论 err 值如何，均应该先看 entries 是否有内容。
 // 如果后续没有更多数据，err 返回 EOF，markerOut 返回 ""（但不通过该特征来判断是否结束）。
-//
 func (p Bucket) List(
 	ctx context.Context, prefix, delimiter, marker string, limit int) (entries []ListItem, commonPrefixes []string, markerOut string, err error) {
 
