@@ -1,12 +1,10 @@
-package kodo
+package test
 
 import (
 	"bytes"
+	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 	"github.com/stretchr/testify/assert"
-	"math/rand"
-	"strconv"
 	"testing"
-	"time"
 )
 
 var (
@@ -15,42 +13,22 @@ var (
 	bnewkey2 = "abatch/newkey2"
 )
 
-func init() {
-
-	if skipTest() {
-		return
-	}
-
-	rand.Seed(time.Now().UnixNano())
-	bkey += strconv.Itoa(rand.Int())
-	bnewkey1 += strconv.Itoa(rand.Int())
-	bnewkey2 += strconv.Itoa(rand.Int())
-	// 删除 可能存在的 key
-	bucket.BatchDelete(nil, bkey, bnewkey1, bnewkey2)
+func prepareKey(t *testing.T) {
+	err := bucket.Put(nil, nil, bkey, bytes.NewReader([]byte("HelloWorld1")), 11, nil)
+	assert.NoError(t, err)
 }
 
-func TestAll(t *testing.T) {
-
-	if skipTest() {
-		return
-	}
-
-	//上传一个文件用用于测试
-	err := upFile("bucket_test.go", bkey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer bucket.Delete(nil, bkey)
-
-	testBatchStat(t)
-	testBatchCopy(t)
-	testBatchMove(t)
-	testBatchDelete(t)
-	testBatch(t)
-	testClient_MakeUptokenBucket(t)
+func deleteKey(t *testing.T) {
+	err := bucket.Delete(nil, bkey)
+	assert.NoError(t, err)
 }
 
-func testBatchStat(t *testing.T) {
+func TestBatchStat(t *testing.T) {
+	checkSkipTest(t)
+
+	prepareKey(t)
+	defer deleteKey(t)
+
 	err := bucket.Put(nil, nil, bkey, bytes.NewReader([]byte("HelloWorld1")), 11, nil)
 	assert.NoError(t, err)
 	err = bucket.Put(nil, nil, bnewkey1, bytes.NewReader([]byte("HelloWorld2")), 11, nil)
@@ -75,12 +53,20 @@ func testBatchStat(t *testing.T) {
 	assert.Equal(t, stat, rets[2].Data)
 }
 
-func testBatchMove(t *testing.T) {
+func TestBatchMove(t *testing.T) {
+	checkSkipTest(t)
+
+	prepareKey(t)
+	defer deleteKey(t)
 
 	stat0, err := bucket.Stat(nil, bkey)
 	assert.NoError(t, err)
 
-	_, err = bucket.BatchMove(nil, KeyPair{bkey, bnewkey1}, KeyPair{bnewkey1, bnewkey2})
+	_, err = bucket.BatchMove(
+		nil,
+		kodo.KeyPair{Src: bkey, Dest: bnewkey1},
+		kodo.KeyPair{Src: bnewkey1, Dest: bnewkey2},
+	)
 	defer bucket.Move(nil, bnewkey2, bkey)
 	assert.NoError(t, err)
 
@@ -90,8 +76,17 @@ func testBatchMove(t *testing.T) {
 	assert.Equal(t, stat0.Hash, stat1.Hash)
 }
 
-func testBatchCopy(t *testing.T) {
-	_, err := bucket.BatchCopy(nil, KeyPair{bkey, bnewkey1}, KeyPair{bkey, bnewkey2})
+func TestBatchCopy(t *testing.T) {
+	checkSkipTest(t)
+
+	prepareKey(t)
+	defer deleteKey(t)
+
+	_, err := bucket.BatchCopy(
+		nil,
+		kodo.KeyPair{Src: bkey, Dest: bnewkey1},
+		kodo.KeyPair{Src: bkey, Dest: bnewkey2},
+	)
 	defer bucket.Delete(nil, bnewkey1)
 	defer bucket.Delete(nil, bnewkey2)
 	assert.NoError(t, err)
@@ -103,7 +98,11 @@ func testBatchCopy(t *testing.T) {
 	assert.Equal(t, stat0.Hash, stat2.Hash)
 }
 
-func testBatchDelete(t *testing.T) {
+func TestBatchDelete(t *testing.T) {
+	checkSkipTest(t)
+
+	prepareKey(t)
+	defer deleteKey(t)
 
 	bucket.Copy(nil, bkey, bnewkey1)
 	bucket.Copy(nil, bkey, bnewkey2)
@@ -120,15 +119,19 @@ func testBatchDelete(t *testing.T) {
 
 }
 
-func testBatch(t *testing.T) {
+func TestBatch(t *testing.T) {
+	checkSkipTest(t)
+
+	prepareKey(t)
+	defer deleteKey(t)
 
 	ops := []string{
-		URICopy(bucketName, bkey, bucketName, bnewkey1),
-		URIDelete(bucketName, bkey),
-		URIMove(bucketName, bnewkey1, bucketName, bkey),
+		kodo.URICopy(bucketName, bkey, bucketName, bnewkey1),
+		kodo.URIDelete(bucketName, bkey),
+		kodo.URIMove(bucketName, bnewkey1, bucketName, bkey),
 	}
 
-	var rets []BatchItemRet
+	var rets []kodo.BatchItemRet
 	err := client.Batch(nil, &rets, ops)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(rets))

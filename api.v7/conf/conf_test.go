@@ -1,35 +1,45 @@
 package conf
 
 import (
+	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
 
 	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
-func TestUA(t *testing.T) {
-	err := SetAppName("")
-	if err != nil {
-		t.Fatal("expect no error")
+var noErrorAppNames = []string{
+	"",
+	"Test0-_.",
+}
+var errorAppNames = []string{
+	"错误的UA",
+}
+
+func TestSetAppName(t *testing.T) {
+	client := &rpc.Client{}
+	for _, appName := range noErrorAppNames {
+		assert.NoError(t, SetAppName(appName, client))
 	}
-	err = SetAppName("错误的UA")
-	if err == nil {
-		t.Fatal("expect an invalid ua format")
-	}
-	err = SetAppName("Test0-_.")
-	if err != nil {
-		t.Fatal("expect no error")
+
+	for _, appName := range errorAppNames {
+		assert.Error(t, SetAppName(appName, client))
 	}
 }
 
-func TestFormat(t *testing.T) {
-	str := "tesT0.-_"
-	SetAppName(str)
-	v := rpc.UserAgent
-	if !strings.Contains(v, str) {
-		t.Fatal("should include user")
+func TestSetDefaultAppName(t *testing.T) {
+	client := &rpc.Client{}
+	for _, appName := range noErrorAppNames {
+		assert.NoError(t, SetAppName(appName, client))
 	}
-	if !strings.HasPrefix(v, "QiniuGo/"+version) {
-		t.Fatal("invalid format")
+
+	for _, appName := range errorAppNames {
+		assert.Error(t, SetAppName(appName, client))
 	}
+
+	appName := "tesT0.-_"
+	assert.NoError(t, SetDefaultAppName(appName))
+	v := rpc.DefaultUserAgent
+	assert.True(t, strings.Contains(v, appName))
+	assert.True(t, strings.HasPrefix(v, "QiniuGo/"+version))
 }

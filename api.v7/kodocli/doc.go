@@ -1,15 +1,15 @@
 /*
-包 qiniupkg.com/api.v7/kodocli 提供了在客户端调用七牛云存储部分服务的能力
+Package kodocli 提供了在客户端调用七牛云存储部分服务的能力
 
 客户端，严谨说是非可信环境，主要是指在用户端执行的环境，比如：Android/iOS 设备、Windows/Mac/Linux 桌面环境、也包括浏览器（如果浏览器能够执行 Go 语言代码的话）。
 
-注意，在这种场合下您不应该在任何地方配置 AccessKey/SecretKey。泄露 AccessKey/SecretKey 如同泄露您的用户名/密码一样十分危险，会影响您的数据安全。
+注意，在这种场合下您不应该在任何地方配置 accessKey/secretKey。泄露 accessKey/secretKey 如同泄露您的用户名/密码一样十分危险，会影响您的数据安全。
 
 第一个问题是如何上传文件。因为是在非可信环境，所以我们首先是要授予它有上传文件的能力。答案是给它颁发上传凭证。假设服务端也是 Go 语言，那么：
 
 	import "qiniupkg.com/api.v7/kodo"
 
-	kodo.SetMac("your-access-key", "your-secret-key") // 配置 AccessKey/SecretKey
+	kodo.SetMac("your-access-key", "your-secret-key") // 配置 accessKey/secretKey
 
 	zone := 0
 	c := kodo.New(zone, nil) // 创建一个 Client 对象
