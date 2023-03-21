@@ -20,35 +20,38 @@ import (
 	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
-var downloadClient = &http.Client{
-	Transport: &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   1 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	},
-	Timeout: 10 * time.Minute,
-}
+var downloadClient = func() *http.Client {
+	dialer := &net.Dialer{
+		Timeout:   1 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+		Timeout: 10 * time.Minute,
+	}
+	return client
+}()
 
-// 下载器
+// Downloader 下载器
 type Downloader struct {
 	config                   Configurable
 	singleClusterDownloader  *singleClusterDownloader
 	multiClustersConcurrency int
 }
 
-// 根据配置创建下载器
+// NewDownloader 根据配置创建下载器
 func NewDownloader(c *Config) *Downloader {
 	return &Downloader{config: c, singleClusterDownloader: newSingleClusterDownloader(c)}
 }
 
-// 根据环境变量创建下载器
+// NewDownloaderV2 根据环境变量创建下载器
 func NewDownloaderV2() *Downloader {
 	c := getCurrentConfigurable()
 	if c == nil {
@@ -69,13 +72,13 @@ func NewDownloaderV2() *Downloader {
 	}
 }
 
-// 检查文件
+// DownloadCheck 检查文件
 func (d *Downloader) DownloadCheck(key string) (l int64, err error) {
 	l, _, err = d.DownloadRangeBytes(key, -1, 4)
 	return
 }
 
-// 检查多个文件
+// DownloadCheckList 检查多个文件
 func (d *Downloader) DownloadCheckList(ctx context.Context, keys []string) ([]*FileStat, error) {
 	if d.singleClusterDownloader != nil {
 		return d.singleClusterDownloader.downloadCheckList(ctx, keys)
@@ -124,7 +127,7 @@ func (d *Downloader) DownloadCheckList(ctx context.Context, keys []string) ([]*F
 	return allStats, err
 }
 
-// 使用给定的 HTTP Header 请求下载接口，并直接获得 http.Response 响应
+// DownloadRaw 使用给定的 HTTP Header 请求下载接口，并直接获得 http.Response 响应
 func (d *Downloader) DownloadRaw(key string, headers http.Header) (*http.Response, error) {
 	if d.singleClusterDownloader != nil {
 		return d.singleClusterDownloader.downloadRaw(key, headers)
@@ -136,7 +139,7 @@ func (d *Downloader) DownloadRaw(key string, headers http.Header) (*http.Respons
 	}
 }
 
-// 下载指定对象到文件里
+// DownloadFile 下载指定对象到文件里
 func (d *Downloader) DownloadFile(key, path string) (f *os.File, err error) {
 	if d.singleClusterDownloader != nil {
 		return d.singleClusterDownloader.downloadFile(key, path)
@@ -148,7 +151,7 @@ func (d *Downloader) DownloadFile(key, path string) (f *os.File, err error) {
 	}
 }
 
-// 下载指定对象到内存中
+// DownloadBytes 下载指定对象到内存中
 func (d *Downloader) DownloadBytes(key string) (data []byte, err error) {
 	if d.singleClusterDownloader != nil {
 		return d.singleClusterDownloader.downloadBytes(key)
@@ -160,7 +163,7 @@ func (d *Downloader) DownloadBytes(key string) (data []byte, err error) {
 	}
 }
 
-// 下载指定对象的指定范围到内存中
+// DownloadRangeBytes 下载指定对象的指定范围到内存中
 func (d *Downloader) DownloadRangeBytes(key string, offset, size int64) (l int64, data []byte, err error) {
 	if d.singleClusterDownloader != nil {
 		return d.singleClusterDownloader.downloadRangeBytes(key, offset, size)
@@ -172,7 +175,7 @@ func (d *Downloader) DownloadRangeBytes(key string, offset, size int64) (l int64
 	}
 }
 
-// 下载指定对象的指定范围为Reader
+// DownloadRangeReader 下载指定对象的指定范围为Reader
 func (d *Downloader) DownloadRangeReader(key string, offset, size int64) (l int64, reader io.ReadCloser, err error) {
 	if d.singleClusterDownloader != nil {
 		return d.singleClusterDownloader.downloadRangeReader(key, offset, size)
@@ -311,7 +314,7 @@ func (d *singleClusterDownloader) downloadCheckList(ctx context.Context, keys []
 			}
 		})
 	}
-	pool.Wait(ctx)
+	_ = pool.Wait(ctx)
 	return stats, nil
 }
 
@@ -353,7 +356,7 @@ func fileExists(filename string) bool {
 func (d *singleClusterDownloader) downloadRawInner(key string, headers http.Header, failedIoHosts map[string]struct{}) (*http.Response, string, error) {
 	key = strings.TrimPrefix(key, "/")
 	host := d.nextHost(failedIoHosts)
-	url := fmt.Sprintf("%s/getfile/%s/%s/%s", host, d.credentials.AccessKey, d.bucket, key)
+	url := fmt.Sprintf("%s/getfile/%s/%s/%s", host, d.credentials.GetAccessKey(), d.bucket, key)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		failedIoHosts[host] = struct{}{}
@@ -363,7 +366,7 @@ func (d *singleClusterDownloader) downloadRawInner(key string, headers http.Head
 	for headerName, headerValue := range headers {
 		req.Header[headerName] = headerValue
 	}
-	req.Header.Set("User-Agent", rpc.UserAgent)
+	req.Header.Set("User-Agent", rpc.DefaultUserAgent)
 	response, err := downloadClient.Do(req)
 	if err != nil {
 		failedIoHosts[host] = struct{}{}
@@ -460,7 +463,7 @@ const FileError = -3
 func (d *singleClusterDownloader) downloadCheckInner(key, host string) (f *FileStat, err error) {
 	key = strings.TrimPrefix(key, "/")
 
-	url := fmt.Sprintf("%s/getfile/%s/%s/%s", host, d.credentials.AccessKey, d.bucket, key)
+	url := fmt.Sprintf("%s/getfile/%s/%s/%s", host, d.credentials.GetAccessKey(), d.bucket, key)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return &FileStat{
@@ -471,7 +474,7 @@ func (d *singleClusterDownloader) downloadCheckInner(key, host string) (f *FileS
 	}
 
 	req.Header.Set("Range", generateRange(-1, 4))
-	req.Header.Set("User-Agent", rpc.UserAgent)
+	req.Header.Set("User-Agent", rpc.DefaultUserAgent)
 	response, err := downloadClient.Do(req)
 	if err != nil {
 		return &FileStat{

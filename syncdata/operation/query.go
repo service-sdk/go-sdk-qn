@@ -20,21 +20,23 @@ import (
 	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
-var queryClient = &http.Client{
-	Transport: &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   500 * time.Millisecond,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	},
-	Timeout: 1 * time.Second,
-}
+var queryClient = func() *http.Client {
+	dialer := net.Dialer{
+		Timeout:   500 * time.Millisecond,
+		KeepAlive: 30 * time.Second,
+	}
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+		Timeout: 1 * time.Second,
+	}
+}()
 
 var (
 	cacheMap         sync.Map
@@ -194,7 +196,7 @@ func (queryer *Queryer) mustQuery() (c *cache, err error) {
 		if err != nil {
 			continue
 		}
-		req.Header.Set("User-Agent", rpc.UserAgent)
+		req.Header.Set("User-Agent", rpc.DefaultUserAgent)
 		resp, err = queryClient.Do(req)
 		if err != nil {
 			failedUcHosts[ucHost] = struct{}{}

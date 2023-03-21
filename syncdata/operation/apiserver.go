@@ -199,11 +199,11 @@ func (svr *singleClusterApiServer) scale(ctx context.Context, n, m uint64) (s *s
 
 func (svr *singleClusterApiServer) newClient(host string) *kodo.Client {
 	cfg := kodo.Config{
-		AccessKey: svr.credentials.AccessKey,
-		SecretKey: string(svr.credentials.SecretKey),
+		AccessKey: svr.credentials.GetAccessKey(),
+		SecretKey: string(svr.credentials.GetSecretKey()),
 		APIHost:   host,
 	}
-	return kodo.NewWithoutZone(&cfg)
+	return kodo.NewClient(&cfg)
 }
 
 func parseWriteModeString(modeString string) (index, replica, n, m uint64, err error) {

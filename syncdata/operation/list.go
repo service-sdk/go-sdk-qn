@@ -610,12 +610,16 @@ func (l *singleClusterLister) deleteByCallingDeleteAPI(ctx context.Context, key 
 }
 
 func (l *singleClusterLister) putInRecycleBin(ctx context.Context, key string, recycleBin string) error {
+	// 确保回收站路径是以 / 结尾的目录文件
 	keyAfterRename := recycleBin
 	if !strings.HasSuffix(keyAfterRename, "/") {
 		keyAfterRename += "/"
 	}
+	// 将文件名拼接到回收站路径后面
 	keyAfterRename += key
+	// 删除已经存在的回收站文件
 	l.deleteByCallingDeleteAPI(ctx, keyAfterRename)
+	// 重命名文件到回收站
 	return l.renameByCallingRenameAPI(ctx, key, keyAfterRename)
 }
 
@@ -897,15 +901,15 @@ func (l *singleClusterLister) listPrefix(ctx context.Context, prefix string) ([]
 
 func (l *singleClusterLister) newBucket(host, rsfHost, apiHost string) kodo.Bucket {
 	cfg := kodo.Config{
-		AccessKey: l.credentials.AccessKey,
-		SecretKey: string(l.credentials.SecretKey),
+		AccessKey: l.credentials.GetAccessKey(),
+		SecretKey: string(l.credentials.GetSecretKey()),
 		RSHost:    host,
 		RSFHost:   rsfHost,
 		APIHost:   apiHost,
 		UpHosts:   l.upHosts,
 	}
-	client := kodo.NewWithoutZone(&cfg)
-	return client.Bucket(l.bucket)
+	client := kodo.NewClient(&cfg)
+	return *kodo.NewBucket(client, l.bucket)
 }
 
 func (l *Lister) batchStab(r io.Reader) []*FileStat {

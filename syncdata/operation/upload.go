@@ -124,7 +124,7 @@ func (p *singleClusterUploader) makeUptoken(policy *kodo.PutPolicy) string {
 		rr.Expires = 3600 + uint32(time.Now().Unix())
 	}
 	b, _ := json.Marshal(&rr)
-	return qbox.SignWithData(p.credentials, b)
+	return p.credentials.SignWithData(b)
 }
 
 func (p *singleClusterUploader) uploadData(data []byte, key string) (err error) {
