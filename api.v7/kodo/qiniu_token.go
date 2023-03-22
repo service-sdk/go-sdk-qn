@@ -2,7 +2,6 @@ package kodo
 
 import (
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +22,6 @@ type GetPolicy struct {
 }
 
 func (p *Client) MakePrivateUrl(baseUrl string, policy *GetPolicy) (privateUrl string) {
-
 	var expires int64
 	if policy == nil || policy.Expires == 0 {
 		expires = 3600
@@ -42,21 +40,24 @@ func (p *Client) MakePrivateUrl(baseUrl string, policy *GetPolicy) (privateUrl s
 	token := p.mac.Sign([]byte(baseUrl))
 	return baseUrl + "&token=" + token
 }
-func (p *Client) MakeUptoken(policy *PutPolicy) string {
-	token, err := p.MakeUptokenWithSafe(policy)
-	if err != nil {
-		fmt.Errorf("makeuptoken failed: policy: %+v, error: %+v", policy, err)
+
+// MakeUpToken 根据给定的上传策略构造一个上传凭证
+func (p *Client) MakeUpToken(policy *PutPolicy) string {
+	if policy.Deadline == 0 {
+		// 若未设置过期时间，则默认设置为 3600 秒之后失效
+		return p.MakeUpTokenWithExpires(policy, 3600)
+	} else {
+		// 若设置了过期时间，则直接使用，则不用再加有效时间
+		return p.MakeUpTokenWithExpires(policy, 0)
 	}
-	return token
 }
 
-func (p *Client) MakeUptokenWithSafe(policy *PutPolicy) (token string, err error) {
-	var rr = *policy
-	if rr.Expires == 0 {
-		rr.Expires = 3600
-	}
-	rr.Expires += uint32(time.Now().Unix())
-	b, _ := json.Marshal(&rr)
-	token = p.mac.SignWithData(b)
-	return
+// MakeUpTokenWithExpires 根据给定的上传策略和有效时间构造一个上传凭证，
+// 有效时间单位为秒，将与上传策略中的过期时间叠加。
+func (p *Client) MakeUpTokenWithExpires(policy *PutPolicy, expires uint32) string {
+	// 解引用会复制一份 policy 的副本，避免修改原来的 policy
+	rr := *policy
+	rr.Deadline += expires + uint32(time.Now().Unix())
+	b, _ := json.Marshal(rr)
+	return p.mac.SignWithData(b)
 }

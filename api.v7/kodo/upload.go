@@ -14,23 +14,21 @@ type PutExtra kodocli.PutExtra
 type RputExtra kodocli.RputExtra
 type PutRet kodocli.PutRet
 
-func (p Bucket) makeUptoken(key string) string {
+func (p Bucket) makeUpToken(key string) string {
 	policy := &PutPolicy{
 		Scope:   p.Name + ":" + key,
-		Expires: 3600,
 		UpHosts: p.Conn.UpHosts,
 	}
-	return p.Conn.MakeUptoken(policy)
+	return p.Conn.MakeUpTokenWithExpires(policy, 3600)
 }
 
-func (p Bucket) makeUptokenWithoutKey() string {
+func (p Bucket) makeUpTokenWithoutKey() string {
 
 	policy := &PutPolicy{
 		Scope:   p.Name,
-		Expires: 3600,
 		UpHosts: p.Conn.UpHosts,
 	}
-	return p.Conn.MakeUptoken(policy)
+	return p.Conn.MakeUpTokenWithExpires(policy, 3600)
 }
 
 func (p Bucket) makeUploader() kodocli.Uploader {
@@ -58,8 +56,8 @@ func (p Bucket) Put(
 	extra *PutExtra,
 ) error {
 	uploader := p.makeUploader()
-	uptoken := p.makeUptoken(key)
-	return uploader.Put(ctx, ret, uptoken, key, data, size, (*kodocli.PutExtra)(extra))
+	upToken := p.makeUpToken(key)
+	return uploader.Put(ctx, ret, upToken, key, data, size, (*kodocli.PutExtra)(extra))
 }
 
 // PutWithoutKey 上传一个文件。自动以文件的 hash 作为文件的访问路径（key）
@@ -76,8 +74,8 @@ func (p Bucket) PutWithoutKey(
 	extra *PutExtra,
 ) error {
 	uploader := p.makeUploader()
-	uptoken := p.makeUptokenWithoutKey()
-	return uploader.PutWithoutKey(ctx, ret, uptoken, data, size, (*kodocli.PutExtra)(extra))
+	upToken := p.makeUpTokenWithoutKey()
+	return uploader.PutWithoutKey(ctx, ret, upToken, data, size, (*kodocli.PutExtra)(extra))
 }
 
 // PutFile 上传一个文件。
@@ -94,8 +92,8 @@ func (p Bucket) PutFile(
 	extra *PutExtra,
 ) error {
 	uploader := p.makeUploader()
-	uptoken := p.makeUptoken(key)
-	return uploader.PutFile(ctx, ret, uptoken, key, localFile, (*kodocli.PutExtra)(extra))
+	upToken := p.makeUpToken(key)
+	return uploader.PutFile(ctx, ret, upToken, key, localFile, (*kodocli.PutExtra)(extra))
 }
 
 // PutFileWithoutKey 上传一个文件。自动以文件的 hash 作为文件的访问路径（key）。
@@ -113,14 +111,14 @@ func (p Bucket) PutFileWithoutKey(
 ) error {
 
 	uploader := p.makeUploader()
-	uptoken := p.makeUptokenWithoutKey()
-	return uploader.PutFileWithoutKey(ctx, ret, uptoken, localFile, (*kodocli.PutExtra)(extra))
+	upToken := p.makeUpTokenWithoutKey()
+	return uploader.PutFileWithoutKey(ctx, ret, upToken, localFile, (*kodocli.PutExtra)(extra))
 }
 
 // Rput 上传一个文件，支持断点续传和分块上传。
 //
 // ctx     是请求的上下文。
-// ret     是上传成功后返回的数据。如果 uptoken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
+// ret     是上传成功后返回的数据。如果 upToken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
 // key     是要上传的文件访问路径。比如："foo/bar.jpg"。注意我们建议 key 不要以 '/' 开头。另外，key 为空字符串是合法的。
 // data    是文件内容的访问接口。考虑到需要支持分块上传和断点续传，要的是 io.ReaderAt 接口，而不是 io.Reader。
 // fsize   是要上传的文件大小。
@@ -134,13 +132,13 @@ func (p Bucket) Rput(
 	extra *RputExtra,
 ) error {
 	uploader := p.makeUploader()
-	uptoken := p.makeUptoken(key)
-	return uploader.Rput(ctx, ret, uptoken, key, data, size, (*kodocli.RputExtra)(extra))
+	upToken := p.makeUpToken(key)
+	return uploader.Rput(ctx, ret, upToken, key, data, size, (*kodocli.RputExtra)(extra))
 }
 
 // RputWithoutKey 上传一个文件，支持断点续传和分块上传。自动以文件的 hash 作为文件的访问路径（key）。
 // ctx     是请求的上下文。
-// ret     是上传成功后返回的数据。如果 uptoken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
+// ret     是上传成功后返回的数据。如果 upToken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
 // data    是文件内容的访问接口。考虑到需要支持分块上传和断点续传，要的是 io.ReaderAt 接口，而不是 io.Reader。
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 RputExtra 结构的描述。
@@ -152,15 +150,15 @@ func (p Bucket) RputWithoutKey(
 	extra *RputExtra,
 ) error {
 	uploader := p.makeUploader()
-	uptoken := p.makeUptokenWithoutKey()
-	return uploader.RputWithoutKey(ctx, ret, uptoken, data, size, (*kodocli.RputExtra)(extra))
+	upToken := p.makeUpTokenWithoutKey()
+	return uploader.RputWithoutKey(ctx, ret, upToken, data, size, (*kodocli.RputExtra)(extra))
 }
 
 // RputFile 上传一个文件，支持断点续传和分块上传。
 // 和 Rput 不同的只是一个通过提供文件路径来访问文件内容，一个通过 io.ReaderAt 来访问。
 //
 // ctx       是请求的上下文。
-// ret       是上传成功后返回的数据。如果 uptoken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
+// ret       是上传成功后返回的数据。如果 upToken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
 // key       是要上传的文件访问路径。比如："foo/bar.jpg"。注意我们建议 key 不要以 '/' 开头。另外，key 为空字符串是合法的。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 RputExtra 结构的描述。
@@ -171,15 +169,15 @@ func (p Bucket) RputFile(
 	extra *RputExtra,
 ) error {
 	uploader := p.makeUploader()
-	uptoken := p.makeUptoken(key)
-	return uploader.RputFile(ctx, ret, uptoken, key, localFile, (*kodocli.RputExtra)(extra))
+	upToken := p.makeUpToken(key)
+	return uploader.RputFile(ctx, ret, upToken, key, localFile, (*kodocli.RputExtra)(extra))
 }
 
 // RputFileWithoutKey 上传一个文件，支持断点续传和分块上传。自动以文件的 hash 作为文件的访问路径（key）。
 // 和 RputWithoutKey 不同的只是一个通过提供文件路径来访问文件内容，一个通过 io.ReaderAt 来访问。
 //
 // ctx       是请求的上下文。
-// ret       是上传成功后返回的数据。如果 uptoken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
+// ret       是上传成功后返回的数据。如果 upToken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 RputExtra 结构的描述。
 func (p Bucket) RputFileWithoutKey(
@@ -189,8 +187,8 @@ func (p Bucket) RputFileWithoutKey(
 	extra *RputExtra,
 ) error {
 	uploader := p.makeUploader()
-	uptoken := p.makeUptokenWithoutKey()
-	return uploader.RputFileWithoutKey(ctx, ret, uptoken, localFile, (*kodocli.RputExtra)(extra))
+	upToken := p.makeUpTokenWithoutKey()
+	return uploader.RputFileWithoutKey(ctx, ret, upToken, localFile, (*kodocli.RputExtra)(extra))
 }
 
 // ----------------------------------------------------------

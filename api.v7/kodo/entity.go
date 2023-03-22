@@ -21,7 +21,7 @@ type ListItem struct {
 
 type PutPolicy struct {
 	Scope               string   `json:"scope"`
-	Expires             uint32   `json:"deadline"`             // 截止时间（以秒为单位）
+	Deadline            uint32   `json:"deadline"`             // 截止时间（以秒为单位）
 	InsertOnly          uint16   `json:"insertOnly,omitempty"` // 若非0, 即使Scope为 Bucket:Key 的形式也是insert only
 	DetectMime          uint8    `json:"detectMime,omitempty"` // 若非0, 则服务端根据内容自动确定 MimeType
 	CallbackFetchKey    uint8    `json:"callbackFetchKey,omitempty"`
