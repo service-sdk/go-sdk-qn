@@ -46,7 +46,7 @@ var (
 )
 
 type (
-	// 域名查询器
+	// Queryer 域名查询器
 	Queryer struct {
 		ak      string
 		bucket  string
@@ -80,7 +80,7 @@ func init() {
 	loadQueryersCache()
 }
 
-// 根据配置创建域名查询器
+// NewQueryer 根据配置创建域名查询器
 func NewQueryer(c *Config) *Queryer {
 	queryer := Queryer{
 		ak:      c.Ak,
@@ -91,7 +91,7 @@ func NewQueryer(c *Config) *Queryer {
 	return &queryer
 }
 
-// 查询 UP 服务器 URL
+// QueryUpHosts 查询 UP 服务器 URL
 func (queryer *Queryer) QueryUpHosts(https bool) (urls []string) {
 	if cache, err := queryer.query(); err == nil {
 		domains := cache.CachedHosts.Hosts[0].Up.Domains
@@ -100,7 +100,7 @@ func (queryer *Queryer) QueryUpHosts(https bool) (urls []string) {
 	return
 }
 
-// 查询 IO 服务器 URL
+// QueryIoHosts 查询 IO 服务器 URL
 func (queryer *Queryer) QueryIoHosts(https bool) (urls []string) {
 	if cache, err := queryer.query(); err == nil {
 		domains := cache.CachedHosts.Hosts[0].Io.Domains
@@ -109,7 +109,7 @@ func (queryer *Queryer) QueryIoHosts(https bool) (urls []string) {
 	return
 }
 
-// 查询 RS 服务器 URL
+// QueryRsHosts 查询 RS 服务器 URL
 func (queryer *Queryer) QueryRsHosts(https bool) (urls []string) {
 	if cache, err := queryer.query(); err == nil {
 		domains := cache.CachedHosts.Hosts[0].Rs.Domains
@@ -118,7 +118,7 @@ func (queryer *Queryer) QueryRsHosts(https bool) (urls []string) {
 	return
 }
 
-// 查询 RSF 服务器 URL
+// QueryRsfHosts 查询 RSF 服务器 URL
 func (queryer *Queryer) QueryRsfHosts(https bool) (urls []string) {
 	if cache, err := queryer.query(); err == nil {
 		domains := cache.CachedHosts.Hosts[0].Rsf.Domains
@@ -127,7 +127,7 @@ func (queryer *Queryer) QueryRsfHosts(https bool) (urls []string) {
 	return
 }
 
-// 查询 APISERVER 服务器 URL
+// QueryApiServerHosts 查询 APISERVER 服务器 URL
 func (queryer *Queryer) QueryApiServerHosts(https bool) (urls []string) {
 	if cache, err := queryer.query(); err == nil {
 		domains := cache.CachedHosts.Hosts[0].ApiServer.Domains

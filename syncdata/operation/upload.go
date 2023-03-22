@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -16,18 +15,18 @@ import (
 	q "github.com/service-sdk/go-sdk-qn/api.v8/kodocli"
 )
 
-// 上传器
+// Uploader 上传器
 type Uploader struct {
 	config                Configurable
 	singleClusterUploader *singleClusterUploader
 }
 
-// 根据配置创建上传器
+// NewUploader 根据配置创建上传器
 func NewUploader(c *Config) *Uploader {
 	return &Uploader{config: c, singleClusterUploader: newSingleClusterUploader(c)}
 }
 
-// 根据环境变量创建上传器
+// NewUploaderV2 根据环境变量创建上传器
 func NewUploaderV2() *Uploader {
 	c := getCurrentConfigurable()
 	if c == nil {
@@ -39,7 +38,7 @@ func NewUploaderV2() *Uploader {
 	}
 }
 
-// 上传内存数据到指定对象中
+// UploadData 上传内存数据到指定对象中
 func (p *Uploader) UploadData(data []byte, key string) (err error) {
 	if p.singleClusterUploader != nil {
 		return p.singleClusterUploader.uploadData(data, key)
@@ -51,7 +50,7 @@ func (p *Uploader) UploadData(data []byte, key string) (err error) {
 	}
 }
 
-// 从 Reader 中阅读指定大小的数据并上传到指定对象中
+// UploadDataReader 从 Reader 中阅读指定大小的数据并上传到指定对象中
 func (p *Uploader) UploadDataReader(data io.ReaderAt, size int, key string) (err error) {
 	if p.singleClusterUploader != nil {
 		return p.singleClusterUploader.uploadDataReader(data, size, key)
@@ -63,7 +62,7 @@ func (p *Uploader) UploadDataReader(data io.ReaderAt, size int, key string) (err
 	}
 }
 
-// 上传指定文件到指定对象中
+// Upload 上传指定文件到指定对象中
 func (p *Uploader) Upload(file string, key string) (err error) {
 	if p.singleClusterUploader != nil {
 		return p.singleClusterUploader.upload(file, key)
@@ -75,7 +74,7 @@ func (p *Uploader) Upload(file string, key string) (err error) {
 	}
 }
 
-// 从 Reader 中阅读全部数据并上传到指定对象中
+// UploadReader 从 Reader 中阅读全部数据并上传到指定对象中
 func (p *Uploader) UploadReader(reader io.Reader, key string) (err error) {
 	if p.singleClusterUploader != nil {
 		return p.singleClusterUploader.uploadReader(reader, key)
@@ -286,7 +285,7 @@ func (p *singleClusterUploader) uploadReader(reader io.Reader, key string) (err 
 	})
 
 	bufReader := bufio.NewReader(reader)
-	firstPart, err := ioutil.ReadAll(io.LimitReader(bufReader, p.partSize))
+	firstPart, err := io.ReadAll(io.LimitReader(bufReader, p.partSize))
 	if err != nil {
 		return
 	}

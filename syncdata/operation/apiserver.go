@@ -20,12 +20,12 @@ type ApiServer struct {
 	multiClustersConcurrency int
 }
 
-// 根据配置创建 API Server
+// NewApiServer 根据配置创建 API Server
 func NewApiServer(c *Config) *ApiServer {
 	return &ApiServer{config: c, singleClusterApiServer: newSingleClusterApiServer(c)}
 }
 
-// 根据环境变量创建 API Server
+// NewApiServerV2 根据环境变量创建 API Server
 func NewApiServerV2() *ApiServer {
 	c := getCurrentConfigurable()
 	if c == nil {

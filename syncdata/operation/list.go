@@ -24,19 +24,19 @@ var (
 	ErrCannotTransferBetweenDifferentClusters = errors.New("cannot transfer between different clusters")
 )
 
-// 列举器
+// Lister 列举器
 type Lister struct {
 	config                   Configurable
 	singleClusterLister      *singleClusterLister
 	multiClustersConcurrency int
 }
 
-// 根据配置创建列举器
+// NewLister 根据配置创建列举器
 func NewLister(c *Config) *Lister {
 	return &Lister{config: c, singleClusterLister: newSingleClusterLister(c)}
 }
 
-// 根据环境变量创建列举器
+// NewListerV2 根据环境变量创建列举器
 func NewListerV2() *Lister {
 	c := getCurrentConfigurable()
 	if c == nil {
@@ -57,14 +57,14 @@ func NewListerV2() *Lister {
 	}
 }
 
-// 文件元信息
+// FileStat 文件元信息
 type FileStat struct {
 	Name string `json:"name"`
 	Size int64  `json:"size"`
-	code int    `json:"-"`
+	code int
 }
 
-// 重命名对象
+// Rename 重命名对象
 func (l *Lister) Rename(fromKey, toKey string) error {
 	var scl *singleClusterLister
 	if l.singleClusterLister != nil {
@@ -79,7 +79,7 @@ func (l *Lister) Rename(fromKey, toKey string) error {
 	return scl.rename(fromKey, toKey)
 }
 
-// 移动对象到指定存储空间的指定对象中
+// MoveTo 移动对象到指定存储空间的指定对象中
 func (l *Lister) MoveTo(fromKey, toBucket, toKey string) error {
 	var scl *singleClusterLister
 	if l.singleClusterLister != nil {
@@ -94,7 +94,7 @@ func (l *Lister) MoveTo(fromKey, toBucket, toKey string) error {
 	return scl.moveTo(fromKey, toBucket, toKey)
 }
 
-// 复制对象到当前存储空间的指定对象中
+// Copy 复制对象到当前存储空间的指定对象中
 func (l *Lister) Copy(fromKey, toKey string) error {
 	var scl *singleClusterLister
 	if l.singleClusterLister != nil {
@@ -124,12 +124,12 @@ func (l *Lister) canTransfer(fromKey, toKey string) (*Config, error) {
 	return configOfFromKey, nil
 }
 
-// 删除指定对象，如果配置了回收站，该 API 将会将文件移动到回收站中，而不做实际的删除
+// Delete 删除指定对象，如果配置了回收站，该 API 将会将文件移动到回收站中，而不做实际的删除
 func (l *Lister) Delete(key string) error {
 	return l.delete(key, false)
 }
 
-// 强制删除指定对象，无论是否配置回收站，该 API 都会直接删除文件
+// ForceDelete 强制删除指定对象，无论是否配置回收站，该 API 都会直接删除文件
 func (l *Lister) ForceDelete(key string) error {
 	return l.delete(key, true)
 }
@@ -148,7 +148,7 @@ func (l *Lister) delete(key string, isForce bool) error {
 	return scl.delete(key, isForce)
 }
 
-// 获取指定对象列表的元信息
+// ListStat 获取指定对象列表的元信息
 func (l *Lister) ListStat(keys []string) []*FileStat {
 	if fileStats, err := l.listStat(context.Background(), keys); err != nil {
 		return []*FileStat{}
@@ -208,7 +208,7 @@ func (l *Lister) listStatForConfig(ctx context.Context, config *Config, keys []s
 	return newSingleClusterLister(config).listStat(ctx, keys)
 }
 
-// 根据前缀列举存储空间
+// ListPrefix 根据前缀列举存储空间
 func (l *Lister) ListPrefix(prefix string) []string {
 	if keys, err := l.listPrefix(context.Background(), prefix); err != nil {
 		return []string{}
@@ -247,12 +247,12 @@ func (l *Lister) listPrefixForConfig(ctx context.Context, config *Config, prefix
 	return newSingleClusterLister(config).listPrefix(ctx, prefix)
 }
 
-// 删除多个对象，如果配置了回收站，该 API 将会将文件移动到回收站中，而不做实际的删除
+// DeleteKeys 删除多个对象，如果配置了回收站，该 API 将会将文件移动到回收站中，而不做实际的删除
 func (l *Lister) DeleteKeys(keys []string) ([]*DeleteKeysError, error) {
 	return l.deleteKeys(context.Background(), keys, false)
 }
 
-// 强制删除多个对象，无论是否配置回收站，该 API 都会直接删除文件
+// ForceDeleteKeys 强制删除多个对象，无论是否配置回收站，该 API 都会直接删除文件
 func (l *Lister) ForceDeleteKeys(keys []string) ([]*DeleteKeysError, error) {
 	return l.deleteKeys(context.Background(), keys, true)
 }
@@ -308,31 +308,31 @@ func (l *Lister) deleteKeysForConfig(ctx context.Context, config *Config, keys [
 	return newSingleClusterLister(config).deleteKeys(ctx, keys, isForce)
 }
 
-// 目录级别的Rename操作
+// RenameDirectory 目录级别的Rename操作
 func (l *Lister) RenameDirectory(srcDir, destDir string) error {
 	// TODO
 	return nil
 }
 
-// 目录级别的Move操作
+// MoveDirectoryTo 目录级别的Move操作
 func (l *Lister) MoveDirectoryTo(srcDir, destDir string) error {
 	// TODO
 	return nil
 }
 
-// 目录级别的Copy操作
+// CopyDirectory 目录级别的Copy操作
 func (l *Lister) CopyDirectory(srcDir, destDir string) error {
 	// TODO
 	return nil
 }
 
-// 目录级别的Delete操作
+// DeleteDirectory 目录级别的Delete操作
 func (l *Lister) DeleteDirectory(dir string) error {
 	// TODO
 	return nil
 }
 
-// 目录级别的强制Delete操作
+// ForceDeleteDirectory 目录级别的强制Delete操作
 func (l *Lister) ForceDeleteDirectory(dir string) error {
 	// TODO
 	return nil

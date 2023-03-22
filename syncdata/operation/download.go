@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -430,7 +429,9 @@ func (d *singleClusterDownloader) downloadFileInner(key, path string, failedIoHo
 	if ctLength != n {
 		elog.Warn("download length not equal", ctLength, n)
 	}
-	f.Seek(0, io.SeekStart)
+	if _, err = f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
 	return f, nil
 }
 
@@ -447,7 +448,7 @@ func (d *singleClusterDownloader) downloadBytesInner(key string, failedIoHosts m
 		return nil, errors.New(response.Status)
 	}
 	succeedHostName(host)
-	return ioutil.ReadAll(response.Body)
+	return io.ReadAll(response.Body)
 }
 
 func generateRange(offset, size int64) string {
@@ -526,7 +527,7 @@ func (d *singleClusterDownloader) downloadCheckInner(key, host string) (f *FileS
 			code: HostError,
 		}, err
 	}
-	_, err = ioutil.ReadAll(response.Body)
+	_, err = io.ReadAll(response.Body)
 	if err != nil {
 		return &FileStat{
 			Name: key,
@@ -546,7 +547,7 @@ func (d *singleClusterDownloader) downloadRangeBytesInner(key string, offset, si
 	if err != nil {
 		return l, nil, err
 	}
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	r.Close()
 	return l, b, err
 }
@@ -605,10 +606,11 @@ func (d *singleClusterDownloader) downloadRangeReaderInner(key string, offset, s
 	return l, &w, err
 }
 
-func getTotalLength(crange string) (int64, error) {
-	cr := strings.Split(crange, "/")
+// 获取响应头 content-range 中的 / 后面的数字, 即文件总长度
+func getTotalLength(contentRange string) (int64, error) {
+	cr := strings.Split(contentRange, "/")
 	if len(cr) != 2 {
-		return -1, errors.New("wrong range " + crange)
+		return -1, errors.New("wrong range " + contentRange)
 	}
 
 	return strconv.ParseInt(cr[1], 10, 64)

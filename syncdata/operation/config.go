@@ -3,17 +3,17 @@ package operation
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"os"
 	"path"
 	"strings"
 
 	"github.com/pelletier/go-toml"
 )
 
-// 单集群配置文件
+// SingleClusterConfig 单集群配置文件
 type SingleClusterConfig = Config
 
-// 配置文件
+// Config 配置文件
 type Config struct {
 	UpHosts          []string `json:"up_hosts" toml:"up_hosts"`
 	RsHosts          []string `json:"rs_hosts" toml:"rs_hosts"`
@@ -37,14 +37,14 @@ type Config struct {
 
 	RecycleBin string `json:"recycle_bin" toml:"recycle_bin"`
 
-	originalPath string `json:"-" toml:"-"`
+	originalPath string
 }
 
 func (config *Config) forEachClusterConfig(f func(string, *Config) error) error {
 	return f(DefaultPathPrefix, config)
 }
 
-func (config *Config) forKey(key string) (*Config, bool) {
+func (config *Config) forKey(_ string) (*Config, bool) {
 	return config, true
 }
 
@@ -56,10 +56,10 @@ func (config *Config) getOriginalPaths() []string {
 	return paths
 }
 
-// 加载配置文件
+// Load 加载配置文件
 func Load(file string) (*Config, error) {
 	var configuration Config
-	raw, err := ioutil.ReadFile(file)
+	raw, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
