@@ -568,41 +568,42 @@ type DeleteKeysError struct {
 	Name  string
 }
 
+// 列举指定前缀的所有文件
 func (l *singleClusterLister) listPrefix(ctx context.Context, prefix string) ([]string, error) {
-	failedHosts := make(map[string]struct{})
-	rsfHost := l.nextRsfHost(failedHosts)
-	bucket := l.newBucket("", rsfHost, "")
 	var files []string
 	marker := ""
 	for {
-		r, _, out, err := bucket.List(ctx, prefix, "", marker, 1000)
-		if err != nil && err != io.EOF {
-			failedHosts[rsfHost] = struct{}{}
-			failHostName(rsfHost)
-			elog.Info("ListPrefix retry 0", rsfHost, err)
-			rsfHost = l.nextRsfHost(failedHosts)
-			bucket = l.newBucket("", rsfHost, "")
-			r, _, out, err = bucket.List(ctx, prefix, "", marker, 1000)
-			if err != nil && err != io.EOF {
-				failedHosts[rsfHost] = struct{}{}
-				failHostName(rsfHost)
-				elog.Info("ListPrefix retry 1", rsfHost, err)
-				return nil, err
-			} else {
+		res, markerOut, err := func() (res []kodo.ListItem, markerOut string, err error) {
+			failedHosts := make(map[string]struct{})
+			for i := 0; i < 2; i++ {
+				rsfHost := l.nextRsfHost(failedHosts)
+				bucket := l.newBucket("", rsfHost, "")
+				res, _, markerOut, err = bucket.List(ctx, prefix, "", marker, 1000)
+				if err != nil && err != io.EOF {
+					failedHosts[rsfHost] = struct{}{}
+					failHostName(rsfHost)
+					elog.Info("ListPrefix retry ", i, rsfHost, err)
+					continue
+				}
 				succeedHostName(rsfHost)
+				return res, markerOut, nil
 			}
-		} else {
-			succeedHostName(rsfHost)
+			return nil, "", err
+		}()
+		if err != nil {
+			return nil, err
 		}
-		elog.Info("list len", marker, len(r))
-		for _, v := range r {
+		elog.Info("list len", marker, len(res))
+		for _, v := range res {
 			files = append(files, v.Key)
 		}
 
-		if out == "" {
+		// 如果没有更多的文件了，那么退出
+		if markerOut == "" {
 			break
 		}
-		marker = out
+		// 继续获取下一页
+		marker = markerOut
 	}
 	return files, nil
 }
@@ -610,7 +611,7 @@ func (l *singleClusterLister) listPrefix(ctx context.Context, prefix string) ([]
 func (l *singleClusterLister) newBucket(host, rsfHost, apiHost string) kodo.Bucket {
 	cfg := kodo.Config{
 		AccessKey: l.credentials.GetAccessKey(),
-		SecretKey: string(l.credentials.GetSecretKey()),
+		SecretKey: l.credentials.GetSecretKey(),
 		RSHost:    host,
 		RSFHost:   rsfHost,
 		APIHost:   apiHost,
