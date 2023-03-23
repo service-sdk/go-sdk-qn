@@ -11,17 +11,6 @@ import (
 	"sync"
 )
 
-type clusterLister interface {
-	listStat(ctx context.Context, keys []string) ([]*FileStat, error)
-	listPrefix(ctx context.Context, prefix string) ([]string, error)
-	listPrefixToChannel(ctx context.Context, prefix string, ch chan<- string) error
-	delete(key string, isForce bool) error
-	copy(fromKey, toKey string) error
-	moveTo(fromKey string, toBucket string, toKey string) error
-	rename(fromKey, toKey string) error
-	deleteKeys(ctx context.Context, keys []string, isForce bool) ([]*DeleteKeysError, error)
-}
-
 // Lister 列举器
 type Lister struct {
 	clusterLister
@@ -113,6 +102,18 @@ func (l *Lister) ForceDeleteKeys(keys []string) ([]*DeleteKeysError, error) {
 	return l.deleteKeys(context.Background(), keys, true)
 }
 
+func (l *Lister) CopyKeys(fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+	return l.copyKeys(context.Background(), fromKeys, toKeys)
+}
+
+func (l *Lister) MoveKeys(fromKeys, toBuckets, toKeys []string) ([]*FromToKeyError, error) {
+	return l.moveKeys(context.Background(), fromKeys, toBuckets, toKeys)
+}
+
+func (l *Lister) RenameKeys(fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+	return l.renameKeys(context.Background(), fromKeys, toKeys)
+}
+
 type RenameDirectoryError struct {
 	srcKey  string
 	destKey string
@@ -168,7 +169,6 @@ func (l *Lister) CopyDirectory(srcDir, destDir string) error {
 	ch := make(chan string, 100)
 	pool := goroutine_pool.NewGoroutinePool(10)
 	pool.Go(func(ctx context.Context) error {
-		// 积攒够100个key，就批量copy
 		//var keys []string
 		//for key := range ch {
 		//	keys = append(keys, key)
@@ -179,7 +179,10 @@ func (l *Lister) CopyDirectory(srcDir, destDir string) error {
 		//}
 		return nil
 	})
-	l.listPrefixToChannel(context.Background(), srcDir, ch)
+	err := l.listPrefixToChannel(context.Background(), srcDir, ch)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

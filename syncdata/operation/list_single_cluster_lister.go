@@ -519,12 +519,6 @@ func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context,
 	return errors, nil
 }
 
-type DeleteKeysError struct {
-	Error string
-	Code  int
-	Name  string
-}
-
 func (l *singleClusterLister) listPrefixToChannel(ctx context.Context, prefix string, ch chan<- string) error {
 	marker := ""
 	for {
@@ -597,4 +591,19 @@ func (l *singleClusterLister) newBucket(host, rsfHost, apiHost string) kodo.Buck
 	}
 	client := kodo.NewClient(&cfg)
 	return *kodo.NewBucket(client, l.bucket)
+}
+
+func (l *singleClusterLister) copyKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+	// TODO
+	return nil, nil
+}
+
+func (l *singleClusterLister) moveKeys(ctx context.Context, fromKeys, toBuckets, toKeys []string) ([]*FromToKeyError, error) {
+	// TODO
+	return nil, nil
+}
+
+func (l *singleClusterLister) renameKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+	// TODO
+	return nil, nil
 }

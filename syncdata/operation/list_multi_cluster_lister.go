@@ -199,3 +199,18 @@ func (l *multiClusterLister) deleteKeys(ctx context.Context, keys []string, isFo
 	err := pool.Wait(ctx)
 	return allErrors, err
 }
+
+func (l *multiClusterLister) copyKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+	// TODO
+	return nil, nil
+}
+
+func (l *multiClusterLister) moveKeys(ctx context.Context, fromKeys, toBuckets, toKeys []string) ([]*FromToKeyError, error) {
+	// TODO
+	return nil, nil
+}
+
+func (l *multiClusterLister) renameKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+	// TODO
+	return nil, nil
+}
