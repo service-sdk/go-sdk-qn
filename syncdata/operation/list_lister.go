@@ -183,14 +183,14 @@ func (l *Lister) listStat(ctx context.Context, keys []string) ([]*FileStat, erro
 	for config, keysWithIndex := range clusterPathsMap {
 		func(config *Config, keys []string, indexMap []int) {
 			pool.Go(func(ctx context.Context) error {
-				if stats, err := l.listStatForConfig(ctx, config, keys); err != nil {
+				stats, err := l.listStatForConfig(ctx, config, keys)
+				if err != nil {
 					return err
-				} else {
-					for i := range stats {
-						allStats[indexMap[i]] = stats[i]
-					}
-					return nil
 				}
+				for i := range stats {
+					allStats[indexMap[i]] = stats[i]
+				}
+				return nil
 			})
 		}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
 	}
@@ -204,11 +204,11 @@ func (l *Lister) listStatForConfig(ctx context.Context, config *Config, keys []s
 
 // ListPrefix 根据前缀列举存储空间
 func (l *Lister) ListPrefix(prefix string) []string {
-	if keys, err := l.listPrefix(context.Background(), prefix); err != nil {
+	keys, err := l.listPrefix(context.Background(), prefix)
+	if err != nil {
 		return []string{}
-	} else {
-		return keys
 	}
+	return keys
 }
 
 func (l *Lister) listPrefix(ctx context.Context, prefix string) ([]string, error) {
@@ -221,14 +221,14 @@ func (l *Lister) listPrefix(ctx context.Context, prefix string) ([]string, error
 	var allKeysMutex sync.Mutex
 	l.config.forEachClusterConfig(func(_ string, config *Config) error {
 		pool.Go(func(ctx context.Context) error {
-			if keys, err := l.listPrefixForConfig(ctx, config, prefix); err != nil {
+			keys, err := l.listPrefixForConfig(ctx, config, prefix)
+			if err != nil {
 				return err
-			} else {
-				allKeysMutex.Lock()
-				allKeys = append(allKeys, keys...)
-				allKeysMutex.Unlock()
-				return nil
 			}
+			allKeysMutex.Lock()
+			allKeys = append(allKeys, keys...)
+			allKeysMutex.Unlock()
+			return nil
 		})
 		return nil
 	})
@@ -283,14 +283,14 @@ func (l *Lister) deleteKeys(ctx context.Context, keys []string, isForce bool) ([
 	for config, keysWithIndex := range clusterPathsMap {
 		func(config *Config, keys []string, indexMap []int) {
 			pool.Go(func(ctx context.Context) error {
-				if errors, err := l.deleteKeysForConfig(ctx, config, keys, isForce); err != nil {
+				deleteErrors, err := l.deleteKeysForConfig(ctx, config, keys, isForce)
+				if err != nil {
 					return err
-				} else {
-					for i := range errors {
-						allErrors[indexMap[i]] = errors[i]
-					}
-					return nil
 				}
+				for i, deleteError := range deleteErrors {
+					allErrors[indexMap[i]] = deleteError
+				}
+				return nil
 			})
 		}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
 	}
