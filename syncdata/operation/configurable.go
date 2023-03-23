@@ -6,8 +6,13 @@ import (
 )
 
 type Configurable interface {
+	// 根据对象的key获取对应集群的配置对象
 	forKey(string) (*Config, bool)
+
+	// 遍历所有集群节点的配置对象
 	forEachClusterConfig(func(string, *Config) error) error
+
+	// 获取所有配置文件的原始路径
 	getOriginalPaths() []string
 }
 

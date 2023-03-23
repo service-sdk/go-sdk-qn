@@ -22,10 +22,12 @@ type MultiClustersConfig struct {
 
 func (config *MultiClustersConfig) SetConfigSelectCallback(f func(map[string]*Config, string) (*Config, bool)) {
 	config.selectConfigCallbackRwLock.Lock()
+	defer config.selectConfigCallbackRwLock.Unlock()
+
 	config.selectConfigCallback = f
-	config.selectConfigCallbackRwLock.Unlock()
 }
 
+// 处理多集群配置文件
 func (config *MultiClustersConfig) forEachClusterConfig(f func(string, *Config) error) error {
 	for pathPrefix, config := range config.configs {
 		if err := f(pathPrefix, config); err != nil {
@@ -35,10 +37,12 @@ func (config *MultiClustersConfig) forEachClusterConfig(f func(string, *Config) 
 	return nil
 }
 
+// 根据key获取对应的配置
 func (config *MultiClustersConfig) forKey(key string) (*Config, bool) {
 	return config.selectConfig(key)
 }
 
+// 根据key获取对应的配置
 func (config *MultiClustersConfig) selectConfig(key string) (*Config, bool) {
 	if config.selectConfigCallback != nil {
 		config.selectConfigCallbackRwLock.RLock()

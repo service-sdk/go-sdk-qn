@@ -103,6 +103,7 @@ func (l *Lister) Copy(fromKey, toKey string) error {
 	return scl.copy(fromKey, toKey)
 }
 
+// 根据key判定两个对象是否可以进行转移操作
 func (l *Lister) canTransfer(fromKey, toKey string) (*Config, error) {
 	configOfFromKey, exists := l.config.forKey(fromKey)
 	if !exists {
