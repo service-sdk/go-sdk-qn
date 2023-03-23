@@ -525,9 +525,7 @@ type DeleteKeysError struct {
 	Name  string
 }
 
-// 列举指定前缀的所有文件
-func (l *singleClusterLister) listPrefix(ctx context.Context, prefix string) ([]string, error) {
-	var files []string
+func (l *singleClusterLister) listPrefixToChannel(ctx context.Context, prefix string, ch chan<- string) error {
 	marker := ""
 	for {
 		res, markerOut, err := func() (res []kodo.ListItem, markerOut string, err error) {
@@ -547,20 +545,43 @@ func (l *singleClusterLister) listPrefix(ctx context.Context, prefix string) ([]
 			}
 			return nil, "", err
 		}()
+
 		if err != nil {
-			return nil, err
-		}
-		elog.Info("list len", marker, len(res))
-		for _, v := range res {
-			files = append(files, v.Key)
+			return err
 		}
 
-		// 如果没有更多的文件了，那么退出
+		for _, item := range res {
+			ch <- item.Key
+		}
+
 		if markerOut == "" {
 			break
 		}
-		// 继续获取下一页
 		marker = markerOut
+	}
+	return nil
+}
+
+// 列举指定前缀的所有文件
+func (l *singleClusterLister) listPrefix(ctx context.Context, prefix string) (files []string, err error) {
+	ch := make(chan string, 1000)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		// 从channel读数据
+		for c := range ch {
+			files = append(files, c)
+		}
+		wg.Done()
+	}()
+
+	err = l.listPrefixToChannel(ctx, prefix, ch)
+	close(ch)
+	wg.Wait()
+
+	if err != nil {
+		return nil, err
 	}
 	return files, nil
 }

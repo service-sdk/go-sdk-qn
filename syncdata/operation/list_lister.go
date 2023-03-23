@@ -3,15 +3,18 @@ package operation
 import (
 	"context"
 	"encoding/json"
+	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
 	"io"
 	"os"
 	"strconv"
+	"sync"
 )
 
 type clusterLister interface {
 	listStat(ctx context.Context, keys []string) ([]*FileStat, error)
 	listPrefix(ctx context.Context, prefix string) ([]string, error)
+	listPrefixToChannel(ctx context.Context, prefix string, ch chan<- string) error
 	delete(key string, isForce bool) error
 	copy(fromKey, toKey string) error
 	moveTo(fromKey string, toBucket string, toKey string) error
@@ -110,9 +113,47 @@ func (l *Lister) ForceDeleteKeys(keys []string) ([]*DeleteKeysError, error) {
 	return l.deleteKeys(context.Background(), keys, true)
 }
 
+type RenameDirectoryError struct {
+	srcKey  string
+	destKey string
+	err     error
+}
+
 // RenameDirectory 目录级别的Rename操作
-func (l *Lister) RenameDirectory(srcDir, destDir string) error {
-	// TODO
+func (l *Lister) RenameDirectory(srcDir, destDir string) (renameErrors []RenameDirectoryError) {
+	var renameErrorsMutex sync.Mutex
+
+	ch := make(chan string, 100)
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			for key := range ch {
+				destKey := destDir + key[len(srcDir):]
+				err := l.Rename(key, destKey)
+
+				// 没有错误，继续
+				if err == nil {
+					continue
+				}
+
+				// 有错误，记录下来
+				func() {
+					renameErrorsMutex.Lock()
+					defer renameErrorsMutex.Unlock()
+					renameErrors = append(renameErrors, RenameDirectoryError{
+						srcKey:  key,
+						destKey: destKey,
+						err:     err,
+					})
+				}()
+			}
+		}()
+	}
+
+	for _, key := range l.ListPrefix(srcDir) {
+		ch <- key
+	}
+	close(ch)
 	return nil
 }
 
@@ -124,7 +165,22 @@ func (l *Lister) MoveDirectoryTo(srcDir, destDir string) error {
 
 // CopyDirectory 目录级别的Copy操作
 func (l *Lister) CopyDirectory(srcDir, destDir string) error {
-	// TODO
+	ch := make(chan string, 100)
+	pool := goroutine_pool.NewGoroutinePool(10)
+	pool.Go(func(ctx context.Context) error {
+		// 积攒够100个key，就批量copy
+		//var keys []string
+		//for key := range ch {
+		//	keys = append(keys, key)
+		//	if len(keys) >= 100 {
+		//		l.CopyKeys(keys, destDir)
+		//		keys = nil
+		//	}
+		//}
+		return nil
+	})
+	l.listPrefixToChannel(context.Background(), srcDir, ch)
+
 	return nil
 }
 

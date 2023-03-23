@@ -84,28 +84,40 @@ func (l *multiClusterLister) listStat(ctx context.Context, keys []string) ([]*Fi
 	return allStats, err
 }
 
-func (l *multiClusterLister) listPrefixForConfig(ctx context.Context, config *Config, prefix string) ([]string, error) {
-	return newSingleClusterLister(config).listPrefix(ctx, prefix)
-}
-func (l *multiClusterLister) listPrefix(ctx context.Context, prefix string) ([]string, error) {
-
+func (l *multiClusterLister) listPrefixToChannel(ctx context.Context, prefix string, ch chan<- string) error {
 	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	allKeys := make([]string, 0)
-	var allKeysMutex sync.Mutex
 	l.config.forEachClusterConfig(func(_ string, config *Config) error {
 		pool.Go(func(ctx context.Context) error {
-			keys, err := l.listPrefixForConfig(ctx, config, prefix)
+			err := newSingleClusterLister(config).listPrefixToChannel(ctx, prefix, ch)
 			if err != nil {
 				return err
 			}
-			allKeysMutex.Lock()
-			allKeys = append(allKeys, keys...)
-			allKeysMutex.Unlock()
 			return nil
 		})
 		return nil
 	})
-	err := pool.Wait(ctx)
+	return pool.Wait(ctx)
+}
+
+func (l *multiClusterLister) listPrefix(ctx context.Context, prefix string) ([]string, error) {
+	allKeys := make([]string, 0)
+	ch := make(chan string, 100)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		for key := range ch {
+			allKeys = append(allKeys, key)
+		}
+		wg.Done()
+	}()
+
+	err := l.listPrefixToChannel(ctx, prefix, ch)
+	close(ch)
+	wg.Wait()
+
+	if err != nil {
+		return nil, err
+	}
 	sort.Strings(allKeys) // 对所有 key 排序，模拟从一个集群的效果
 	return allKeys, err
 }
