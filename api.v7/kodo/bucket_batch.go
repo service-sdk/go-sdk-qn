@@ -25,7 +25,6 @@ func (p Bucket) BatchStat(ctx context.Context, keys ...string) (ret []BatchStatI
 }
 
 func (p Bucket) BatchDelete(ctx context.Context, keys ...string) (ret []BatchItemRet, err error) {
-
 	b := make([]string, len(keys))
 	for i, key := range keys {
 		b[i] = URIDelete(p.Name, key)
