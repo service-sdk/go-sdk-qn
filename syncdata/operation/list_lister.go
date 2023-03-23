@@ -3,31 +3,30 @@ package operation
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
 	"io"
 	"os"
-	"sort"
 	"strconv"
-	"sync"
 )
 
-var (
-	ErrUndefinedConfig                        = errors.New("undefined config")
-	ErrCannotTransferBetweenDifferentClusters = errors.New("cannot transfer between different clusters")
-)
+type clusterLister interface {
+	listStat(ctx context.Context, keys []string) ([]*FileStat, error)
+	listPrefix(ctx context.Context, prefix string) ([]string, error)
+	delete(key string, isForce bool) error
+	copy(fromKey, toKey string) error
+	moveTo(fromKey string, toBucket string, toKey string) error
+	rename(fromKey, toKey string) error
+	deleteKeys(ctx context.Context, keys []string, isForce bool) ([]*DeleteKeysError, error)
+}
 
 // Lister 列举器
 type Lister struct {
-	config                   Configurable
-	singleClusterLister      *singleClusterLister
-	multiClustersConcurrency int
+	clusterLister
 }
 
 // NewLister 根据配置创建列举器
 func NewLister(c *Config) *Lister {
-	return &Lister{config: c, singleClusterLister: newSingleClusterLister(c)}
+	return &Lister{newSingleClusterLister(c)}
 }
 
 // NewListerV2 根据环境变量创建列举器
@@ -47,7 +46,7 @@ func NewListerV2() *Lister {
 				elog.Warn("Invalid QINIU_MULTI_CLUSTERS_CONCURRENCY: ", err)
 			}
 		}
-		return &Lister{config: c, multiClustersConcurrency: concurrency}
+		return &Lister{newMultiClusterLister(c, concurrency)}
 	}
 }
 
@@ -60,63 +59,17 @@ type FileStat struct {
 
 // Rename 重命名对象
 func (l *Lister) Rename(fromKey, toKey string) error {
-	var scl *singleClusterLister
-	if l.singleClusterLister != nil {
-		scl = l.singleClusterLister
-	} else {
-		c, err := l.canTransfer(fromKey, toKey)
-		if err != nil {
-			return err
-		}
-		scl = newSingleClusterLister(c)
-	}
-	return scl.rename(fromKey, toKey)
+	return l.rename(fromKey, toKey)
 }
 
 // MoveTo 移动对象到指定存储空间的指定对象中
 func (l *Lister) MoveTo(fromKey, toBucket, toKey string) error {
-	var scl *singleClusterLister
-	if l.singleClusterLister != nil {
-		scl = l.singleClusterLister
-	} else {
-		c, err := l.canTransfer(fromKey, toKey)
-		if err != nil {
-			return err
-		}
-		scl = newSingleClusterLister(c)
-	}
-	return scl.moveTo(fromKey, toBucket, toKey)
+	return l.moveTo(fromKey, toBucket, toKey)
 }
 
 // Copy 复制对象到当前存储空间的指定对象中
 func (l *Lister) Copy(fromKey, toKey string) error {
-	var scl *singleClusterLister
-	if l.singleClusterLister != nil {
-		scl = l.singleClusterLister
-	} else {
-		c, err := l.canTransfer(fromKey, toKey)
-		if err != nil {
-			return err
-		}
-		scl = newSingleClusterLister(c)
-	}
-	return scl.copy(fromKey, toKey)
-}
-
-// 根据key判定两个对象是否可以进行转移操作
-func (l *Lister) canTransfer(fromKey, toKey string) (*Config, error) {
-	configOfFromKey, exists := l.config.forKey(fromKey)
-	if !exists {
-		return nil, ErrUndefinedConfig
-	}
-	configOfToKey, exists := l.config.forKey(toKey)
-	if !exists {
-		return nil, ErrUndefinedConfig
-	}
-	if configOfFromKey != configOfToKey {
-		return nil, ErrCannotTransferBetweenDifferentClusters
-	}
-	return configOfFromKey, nil
+	return l.copy(fromKey, toKey)
 }
 
 // Delete 删除指定对象，如果配置了回收站，该 API 将会将文件移动到回收站中，而不做实际的删除
@@ -129,20 +82,6 @@ func (l *Lister) ForceDelete(key string) error {
 	return l.delete(key, true)
 }
 
-func (l *Lister) delete(key string, isForce bool) error {
-	var scl *singleClusterLister
-	if l.singleClusterLister != nil {
-		scl = l.singleClusterLister
-	} else {
-		c, exists := l.config.forKey(key)
-		if !exists {
-			return ErrUndefinedConfig
-		}
-		scl = newSingleClusterLister(c)
-	}
-	return scl.delete(key, isForce)
-}
-
 // ListStat 获取指定对象列表的元信息
 func (l *Lister) ListStat(keys []string) []*FileStat {
 	if fileStats, err := l.listStat(context.Background(), keys); err != nil {
@@ -150,57 +89,6 @@ func (l *Lister) ListStat(keys []string) []*FileStat {
 	} else {
 		return fileStats
 	}
-}
-
-func (l *Lister) listStat(ctx context.Context, keys []string) ([]*FileStat, error) {
-	if l.singleClusterLister != nil {
-		return l.singleClusterLister.listStat(ctx, keys)
-	}
-
-	type KeysWithIndex struct {
-		IndexMap []int
-		Keys     []string
-	}
-
-	clusterPathsMap := make(map[*Config]*KeysWithIndex)
-	for i, key := range keys {
-		config, exists := l.config.forKey(key)
-		if !exists {
-			return nil, ErrUndefinedConfig
-		}
-		if keysWithIndex := clusterPathsMap[config]; keysWithIndex != nil {
-			keysWithIndex.IndexMap = append(keysWithIndex.IndexMap, i)
-			keysWithIndex.Keys = append(keysWithIndex.Keys, key)
-		} else {
-			keysWithIndex = &KeysWithIndex{Keys: make([]string, 0, 1), IndexMap: make([]int, 0, 1)}
-			keysWithIndex.IndexMap = append(keysWithIndex.IndexMap, i)
-			keysWithIndex.Keys = append(keysWithIndex.Keys, key)
-			clusterPathsMap[config] = keysWithIndex
-		}
-	}
-
-	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	allStats := make([]*FileStat, len(keys))
-	for config, keysWithIndex := range clusterPathsMap {
-		func(config *Config, keys []string, indexMap []int) {
-			pool.Go(func(ctx context.Context) error {
-				stats, err := l.listStatForConfig(ctx, config, keys)
-				if err != nil {
-					return err
-				}
-				for i := range stats {
-					allStats[indexMap[i]] = stats[i]
-				}
-				return nil
-			})
-		}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
-	}
-	err := pool.Wait(ctx)
-	return allStats, err
-}
-
-func (l *Lister) listStatForConfig(ctx context.Context, config *Config, keys []string) ([]*FileStat, error) {
-	return newSingleClusterLister(config).listStat(ctx, keys)
 }
 
 // ListPrefix 根据前缀列举存储空间
@@ -212,36 +100,6 @@ func (l *Lister) ListPrefix(prefix string) []string {
 	return keys
 }
 
-func (l *Lister) listPrefix(ctx context.Context, prefix string) ([]string, error) {
-	if l.singleClusterLister != nil {
-		return l.singleClusterLister.listPrefix(ctx, prefix)
-	}
-
-	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	allKeys := make([]string, 0)
-	var allKeysMutex sync.Mutex
-	l.config.forEachClusterConfig(func(_ string, config *Config) error {
-		pool.Go(func(ctx context.Context) error {
-			keys, err := l.listPrefixForConfig(ctx, config, prefix)
-			if err != nil {
-				return err
-			}
-			allKeysMutex.Lock()
-			allKeys = append(allKeys, keys...)
-			allKeysMutex.Unlock()
-			return nil
-		})
-		return nil
-	})
-	err := pool.Wait(ctx)
-	sort.Strings(allKeys) // 对所有 key 排序，模拟从一个集群的效果
-	return allKeys, err
-}
-
-func (l *Lister) listPrefixForConfig(ctx context.Context, config *Config, prefix string) ([]string, error) {
-	return newSingleClusterLister(config).listPrefix(ctx, prefix)
-}
-
 // DeleteKeys 删除多个对象，如果配置了回收站，该 API 将会将文件移动到回收站中，而不做实际的删除
 func (l *Lister) DeleteKeys(keys []string) ([]*DeleteKeysError, error) {
 	return l.deleteKeys(context.Background(), keys, false)
@@ -250,57 +108,6 @@ func (l *Lister) DeleteKeys(keys []string) ([]*DeleteKeysError, error) {
 // ForceDeleteKeys 强制删除多个对象，无论是否配置回收站，该 API 都会直接删除文件
 func (l *Lister) ForceDeleteKeys(keys []string) ([]*DeleteKeysError, error) {
 	return l.deleteKeys(context.Background(), keys, true)
-}
-
-func (l *Lister) deleteKeys(ctx context.Context, keys []string, isForce bool) ([]*DeleteKeysError, error) {
-	if l.singleClusterLister != nil {
-		return l.singleClusterLister.deleteKeys(ctx, keys, isForce)
-	}
-
-	type KeysWithIndex struct {
-		IndexMap []int
-		Keys     []string
-	}
-
-	clusterPathsMap := make(map[*Config]*KeysWithIndex)
-	for i, key := range keys {
-		config, exists := l.config.forKey(key)
-		if !exists {
-			return nil, ErrUndefinedConfig
-		}
-		if keysWithIndex := clusterPathsMap[config]; keysWithIndex != nil {
-			keysWithIndex.IndexMap = append(keysWithIndex.IndexMap, i)
-			keysWithIndex.Keys = append(keysWithIndex.Keys, key)
-		} else {
-			keysWithIndex = &KeysWithIndex{Keys: make([]string, 0, 1), IndexMap: make([]int, 0, 1)}
-			keysWithIndex.IndexMap = append(keysWithIndex.IndexMap, i)
-			keysWithIndex.Keys = append(keysWithIndex.Keys, key)
-			clusterPathsMap[config] = keysWithIndex
-		}
-	}
-
-	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	allErrors := make([]*DeleteKeysError, len(keys))
-	for config, keysWithIndex := range clusterPathsMap {
-		func(config *Config, keys []string, indexMap []int) {
-			pool.Go(func(ctx context.Context) error {
-				deleteErrors, err := l.deleteKeysForConfig(ctx, config, keys, isForce)
-				if err != nil {
-					return err
-				}
-				for i, deleteError := range deleteErrors {
-					allErrors[indexMap[i]] = deleteError
-				}
-				return nil
-			})
-		}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
-	}
-	err := pool.Wait(ctx)
-	return allErrors, err
-}
-
-func (l *Lister) deleteKeysForConfig(ctx context.Context, config *Config, keys []string, isForce bool) ([]*DeleteKeysError, error) {
-	return newSingleClusterLister(config).deleteKeys(ctx, keys, isForce)
 }
 
 // RenameDirectory 目录级别的Rename操作
