@@ -102,16 +102,16 @@ func (l *Lister) ForceDeleteKeys(keys []string) ([]*DeleteKeysError, error) {
 	return l.deleteKeys(context.Background(), keys, true)
 }
 
-func (l *Lister) CopyKeys(fromKeys, toKeys []string) ([]*FromToKeyError, error) {
-	return l.copyKeys(context.Background(), fromKeys, toKeys)
+func (l *Lister) CopyKeys(input []CopyKeyInput) ([]*CopyKeysError, error) {
+	return l.copyKeys(context.Background(), input)
 }
 
-func (l *Lister) MoveKeys(fromKeys, toBuckets, toKeys []string) ([]*FromToKeyError, error) {
-	return l.moveKeys(context.Background(), fromKeys, toBuckets, toKeys)
+func (l *Lister) MoveKeys(input []MoveKeyInput) ([]*MoveKeysError, error) {
+	return l.moveKeys(context.Background(), input)
 }
 
-func (l *Lister) RenameKeys(fromKeys, toKeys []string) ([]*FromToKeyError, error) {
-	return l.renameKeys(context.Background(), fromKeys, toKeys)
+func (l *Lister) RenameKeys(input []RenameKeyInput) ([]*RenameKeysError, error) {
+	return l.renameKeys(context.Background(), input)
 }
 
 type RenameDirectoryError struct {

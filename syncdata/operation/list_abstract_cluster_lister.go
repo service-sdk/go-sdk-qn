@@ -2,10 +2,25 @@ package operation
 
 import "context"
 
-type DeleteKeysError struct {
+type SingleKeyError struct {
 	Error string
 	Code  int
 	Name  string
+}
+
+type DeleteKeysError SingleKeyError
+
+type FromToKey struct {
+	FromKey string
+	ToKey   string
+}
+
+type CopyKeyInput FromToKey
+type RenameKeyInput FromToKey
+
+type MoveKeyInput struct {
+	FromToKey
+	toBucket string
 }
 
 type FromToKeyError struct {
@@ -13,6 +28,14 @@ type FromToKeyError struct {
 	Code    int
 	FromKey string
 	ToKey   string
+}
+
+type CopyKeysError FromToKeyError
+type RenameKeysError FromToKeyError
+
+type MoveKeysError struct {
+	FromToKeyError
+	ToBucket string
 }
 
 type clusterLister interface {
@@ -24,7 +47,7 @@ type clusterLister interface {
 	moveTo(fromKey, toBucket, toKey string) error
 	rename(fromKey, toKey string) error
 	deleteKeys(ctx context.Context, keys []string, isForce bool) ([]*DeleteKeysError, error)
-	copyKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error)
-	moveKeys(ctx context.Context, fromKeys, toBuckets, toKeys []string) ([]*FromToKeyError, error)
-	renameKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error)
+	copyKeys(ctx context.Context, input []CopyKeyInput) ([]*CopyKeysError, error)
+	moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error)
+	renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error)
 }

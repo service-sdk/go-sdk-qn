@@ -18,8 +18,11 @@ type multiClusterLister struct {
 	multiClustersConcurrency int
 }
 
-func newMultiClusterLister(config Configurable, multiClustersConcurrency int) *multiClusterLister {
-	return &multiClusterLister{config: config, multiClustersConcurrency: multiClustersConcurrency}
+func newMultiClusterLister(config Configurable, multiClustersConcurrency int) clusterLister {
+	return &multiClusterLister{
+		config:                   config,
+		multiClustersConcurrency: multiClustersConcurrency,
+	}
 }
 
 // 根据key判定两个对象是否可以进行转移操作
@@ -200,17 +203,15 @@ func (l *multiClusterLister) deleteKeys(ctx context.Context, keys []string, isFo
 	return allErrors, err
 }
 
-func (l *multiClusterLister) copyKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+func (l *multiClusterLister) copyKeys(ctx context.Context, input []CopyKeyInput) ([]*CopyKeysError, error) {
 	// TODO
 	return nil, nil
 }
-
-func (l *multiClusterLister) moveKeys(ctx context.Context, fromKeys, toBuckets, toKeys []string) ([]*FromToKeyError, error) {
+func (l *multiClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error) {
 	// TODO
 	return nil, nil
 }
-
-func (l *multiClusterLister) renameKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
 	// TODO
 	return nil, nil
 }

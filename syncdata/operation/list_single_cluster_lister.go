@@ -26,7 +26,7 @@ type singleClusterLister struct {
 	recycleBin       string
 }
 
-func newSingleClusterLister(c *Config) *singleClusterLister {
+func newSingleClusterLister(c *Config) clusterLister {
 	mac := qbox.NewMac(c.Ak, c.Sk)
 
 	var queryer *Queryer = nil
@@ -271,15 +271,18 @@ func (l *singleClusterLister) listStat(ctx context.Context, paths []string) ([]*
 func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []string, retries uint) ([]*FileStat, error) {
 	return newBatchKeysWithRetries(
 		/*context*/ ctx, l, paths, retries,
-		"delete",
+		"stat",
 		/*action*/ func(bucket kodo.Bucket, paths []string) ([]kodo.BatchStatItemRet, error) {
 			return bucket.BatchStat(ctx, paths...)
 		},
 		2, l.batchSize, l.batchConcurrency,
-		func(code int, path string, r kodo.BatchStatItemRet) *FileStat {
-			return &FileStat{Name: path, Size: r.Data.Fsize, code: code}
+		/*resultBuilder*/ func(path string, r kodo.BatchStatItemRet) *FileStat {
+			if r.Code != 200 {
+				return &FileStat{Name: path, code: r.Code, Size: -1}
+			}
+			return &FileStat{Name: path, Size: r.Data.Fsize, code: r.Code}
 		},
-		func(err *FileStat) (code int, path string) {
+		/*resultParser*/ func(err *FileStat) (code int, path string) {
 			return err.code, err.Name
 		},
 		func(result kodo.BatchStatItemRet) (code int) {
@@ -339,8 +342,11 @@ func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context,
 			return bucket.BatchDelete(ctx, paths...)
 		},
 		2, l.batchSize, l.batchConcurrency,
-		func(code int, path string, r kodo.BatchItemRet) *DeleteKeysError {
-			return &DeleteKeysError{Code: r.Code, Name: path, Error: r.Error}
+		func(path string, r kodo.BatchItemRet) *DeleteKeysError {
+			if code := r.Code; code != 200 {
+				return &DeleteKeysError{Code: r.Code, Name: path, Error: r.Error}
+			}
+			return nil
 		},
 		func(err *DeleteKeysError) (code int, path string) {
 			return err.Code, err.Name
@@ -425,17 +431,40 @@ func (l *singleClusterLister) newBucket(host, rsfHost, apiHost string) kodo.Buck
 	return *kodo.NewBucket(client, l.bucket)
 }
 
-func (l *singleClusterLister) copyKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+func (l *singleClusterLister) copyKeys(ctx context.Context, fromToKeys []CopyKeyInput) ([]*CopyKeysError, error) {
+	return newBatchKeysWithRetries(
+		/*context*/ ctx, l, fromToKeys, 10,
+		"copy",
+		/*action*/ func(bucket kodo.Bucket, fromToKeys []CopyKeyInput) ([]kodo.BatchItemRet, error) {
+			return bucket.BatchCopy(ctx)
+		},
+		2, l.batchSize, l.batchConcurrency,
+		func(fromToKey CopyKeyInput, r kodo.BatchItemRet) *CopyKeysError {
+			return &CopyKeysError{
+				Code:    r.Code,
+				FromKey: fromToKey.FromKey,
+				ToKey:   fromToKey.ToKey,
+				Error:   r.Error,
+			}
+		},
+		func(err *CopyKeysError) (code int, fromToKey CopyKeyInput) {
+			return err.Code, CopyKeyInput{
+				FromKey: err.FromKey,
+				ToKey:   err.ToKey,
+			}
+		},
+		func(result kodo.BatchItemRet) (code int) {
+			return result.Code
+		},
+	).doAndRetryAction()
+}
+
+func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error) {
 	// TODO
 	return nil, nil
 }
 
-func (l *singleClusterLister) moveKeys(ctx context.Context, fromKeys, toBuckets, toKeys []string) ([]*FromToKeyError, error) {
-	// TODO
-	return nil, nil
-}
-
-func (l *singleClusterLister) renameKeys(ctx context.Context, fromKeys, toKeys []string) ([]*FromToKeyError, error) {
+func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
 	// TODO
 	return nil, nil
 }
