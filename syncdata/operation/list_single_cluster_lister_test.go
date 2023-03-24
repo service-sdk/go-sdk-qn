@@ -162,7 +162,7 @@ func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.
 	}()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -171,4 +171,78 @@ func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.
 		}()
 	}
 	wg.Wait()
+}
+
+func clearBucket(t *testing.T) {
+	checkSkipTest(t)
+	l := getSingleClusterLister()
+	// 列举所有
+	ch := make(chan string, 1000)
+	go func() {
+		err := l.listPrefixToChannel(context.Background(), "", ch)
+		assert.NoError(t, err)
+		close(ch)
+	}()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := l.deleteKeysFromChannel(context.Background(), ch, true, nil)
+			assert.NoError(t, err)
+		}()
+	}
+	wg.Wait()
+}
+
+func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T) {
+	checkSkipTest(t)
+
+	l := getSingleClusterLister()
+
+	// 批量上传10000个文件
+	makeLotsFiles(t, 10000, 500)
+
+	// 列举所有文件名到ch1
+	ch1 := make(chan string, 1000)
+	go func() {
+		err := l.listPrefixToChannel(context.Background(), "", ch1)
+		assert.NoError(t, err)
+		close(ch1)
+	}()
+
+	// 从ch1获取所有文件名并转换为MoveKeyInput到ch2
+	ch2 := make(chan MoveKeyInput, 1000)
+	go func() {
+		for key := range ch1 {
+			ch2 <- MoveKeyInput{
+				FromToKey: FromToKey{
+					FromKey: key,
+					ToKey:   "move/" + key,
+				},
+				toBucket: l.bucket,
+			}
+		}
+		close(ch2)
+	}()
+
+	// 开20个消费者批量move
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := l.moveKeysFromChannel(context.Background(), ch2)
+			assert.NoError(t, err)
+		}()
+	}
+	wg.Wait()
+
+	r, err := l.listPrefix(context.Background(), "move/")
+	assert.NoError(t, err)
+	assert.Equal(t, 10000, len(r))
+
+	// 清理
+	clearBucket(t)
 }

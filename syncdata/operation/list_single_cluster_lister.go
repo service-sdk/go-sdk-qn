@@ -592,6 +592,9 @@ func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput
 		},
 		2, l.batchSize, l.batchConcurrency,
 		func(input MoveKeyInput, r kodo.BatchItemRet) *MoveKeysError {
+			if code := r.Code; code == 200 {
+				return nil
+			}
 			return &MoveKeysError{
 				FromToKeyError: FromToKeyError{
 					Code:    r.Code,
@@ -614,12 +617,40 @@ func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput
 	).doAndRetryAction()
 }
 
+func (l *singleClusterLister) moveKeysFromChannel(ctx context.Context, input <-chan MoveKeyInput) error {
+	var batch []MoveKeyInput
+	for in := range input {
+		batch = append(batch, in)
+		if len(batch) >= l.batchSize {
+			_, err := l.moveKeys(ctx, batch)
+			if err != nil {
+				return err
+			}
+			batch = batch[:0]
+		}
+	}
+	if len(batch) > 0 {
+		_, err := l.moveKeys(ctx, batch)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
 	return newBatchKeysWithRetries(
 		/*context*/ ctx, l, input, 10,
 		"rename",
-		/*action*/ func(bucket kodo.Bucket, fromToKeys []RenameKeyInput) ([]kodo.BatchItemRet, error) {
-			return bucket.BatchRename(ctx)
+		/*action*/ func(bucket kodo.Bucket, input []RenameKeyInput) ([]kodo.BatchItemRet, error) {
+			var entries []kodo.KeyPair
+			for _, e := range input {
+				entries = append(entries, kodo.KeyPair{
+					SrcKey:  e.FromKey,
+					DestKey: e.ToKey,
+				})
+			}
+			return bucket.BatchRename(ctx, entries...)
 		},
 		2, l.batchSize, l.batchConcurrency,
 		func(fromToKey RenameKeyInput, r kodo.BatchItemRet) *RenameKeysError {
@@ -637,4 +668,25 @@ func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyI
 			}
 		},
 	).doAndRetryAction()
+}
+
+func (l *singleClusterLister) renameKeysFromChannel(ctx context.Context, input <-chan RenameKeyInput) error {
+	var batch []RenameKeyInput
+	for in := range input {
+		batch = append(batch, in)
+		if len(batch) >= l.batchSize {
+			_, err := l.renameKeys(ctx, batch)
+			if err != nil {
+				return err
+			}
+			batch = batch[:0]
+		}
+	}
+	if len(batch) > 0 {
+		_, err := l.renameKeys(ctx, batch)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
