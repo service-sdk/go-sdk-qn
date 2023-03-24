@@ -265,96 +265,27 @@ func (l *singleClusterLister) delete(key string, isForce bool) error {
 }
 
 func (l *singleClusterLister) listStat(ctx context.Context, paths []string) ([]*FileStat, error) {
-	return l.listStatWithRetries(ctx, paths, 10, 0)
+	return l.listStatWithRetries(ctx, paths, 10)
 }
 
-func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []string, retries, retried uint) ([]*FileStat, error) {
-	concurrency := (len(paths) + l.batchSize - 1) / l.batchSize
-	if concurrency > l.batchConcurrency {
-		concurrency = l.batchConcurrency
-	}
-	var (
-		stats              = make([]*FileStat, len(paths))
-		failedPath         []string
-		failedPathIndexMap []int
-		failedRsHosts      = make(map[string]struct{})
-		failedRsHostsLock  sync.RWMutex
-		pool               = goroutine_pool.NewGoroutinePool(concurrency)
-	)
-
-	for i := 0; i < len(paths); i += l.batchSize {
-		size := l.batchSize
-		if size > len(paths)-i {
-			size = len(paths) - i
-		}
-		func(paths []string, index int) {
-			pool.Go(func(ctx context.Context) error {
-				failedRsHostsLock.RLock()
-				host := l.nextRsHost(failedRsHosts)
-				failedRsHostsLock.RUnlock()
-				bucket := l.newBucket(host, "", "")
-				r, err := bucket.BatchStat(ctx, paths...)
-				if err != nil {
-					failedRsHostsLock.Lock()
-					failedRsHosts[host] = struct{}{}
-					failedRsHostsLock.Unlock()
-					failHostName(host)
-					elog.Info("batchStat retry 0", host, err)
-					failedRsHostsLock.RLock()
-					host = l.nextRsHost(failedRsHosts)
-					failedRsHostsLock.RUnlock()
-					bucket = l.newBucket(host, "", "")
-					r, err = bucket.BatchStat(ctx, paths...)
-					if err != nil {
-						failedRsHostsLock.Lock()
-						failedRsHosts[host] = struct{}{}
-						failedRsHostsLock.Unlock()
-						failHostName(host)
-						elog.Info("batchStat retry 1", host, err)
-						return err
-					} else {
-						succeedHostName(host)
-					}
-				} else {
-					succeedHostName(host)
-				}
-				for j, v := range r {
-					if v.Code != 200 {
-						stats[index+j] = &FileStat{Name: paths[j], Size: -1, code: v.Code}
-						elog.Warn("stat bad file:", paths[j], "with code:", v.Code)
-					} else {
-						stats[index+j] = &FileStat{Name: paths[j], Size: v.Data.Fsize, code: v.Code}
-					}
-				}
-				return nil
-			})
-		}(paths[i:i+size], i)
-	}
-	if err := pool.Wait(ctx); err != nil {
-		return nil, err
-	}
-
-	if retries > 0 {
-		for i, stat := range stats {
-			if stat.code/100 == 5 {
-				failedPathIndexMap = append(failedPathIndexMap, i)
-				failedPath = append(failedPath, stat.Name)
-				elog.Warn("restat bad file:", stat.Name, "with code:", stat.code)
-			}
-		}
-		if len(failedPath) > 0 {
-			elog.Warn("restat ", len(failedPath), " bad files, retried:", retried)
-			retriedStats, err := l.listStatWithRetries(ctx, failedPath, retries-1, retried+1)
-			if err != nil {
-				return stats, err
-			}
-			for i, retriedStat := range retriedStats {
-				stats[failedPathIndexMap[i]] = retriedStat
-			}
-		}
-	}
-
-	return stats, nil
+func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []string, retries uint) ([]*FileStat, error) {
+	return newBatchKeysWithRetries(
+		/*context*/ ctx, l, paths, retries,
+		"delete",
+		/*action*/ func(bucket kodo.Bucket, paths []string) ([]kodo.BatchStatItemRet, error) {
+			return bucket.BatchStat(ctx, paths...)
+		},
+		2, l.batchSize, l.batchConcurrency,
+		func(code int, path string, r kodo.BatchStatItemRet) *FileStat {
+			return &FileStat{Name: path, Size: r.Data.Fsize, code: code}
+		},
+		func(err *FileStat) (code int, path string) {
+			return err.code, err.Name
+		},
+		func(result kodo.BatchStatItemRet) (code int) {
+			return result.Code
+		},
+	).doAndRetryAction()
 }
 
 func (l *singleClusterLister) deleteKeys(ctx context.Context, keys []string, isForce bool) ([]*DeleteKeysError, error) {

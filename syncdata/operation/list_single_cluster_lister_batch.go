@@ -7,22 +7,24 @@ import (
 	"sync"
 )
 
-type batchResult interface{ kodo.BatchItemRet }
-type batchError interface{ DeleteKeysError }
+type batchKodoResult interface {
+	kodo.BatchItemRet | kodo.BatchStatItemRet
+}
+type batchResult interface{ DeleteKeysError | FileStat }
 
 // batchAction 批量操作的动作
-type batchAction[R batchResult] func(bucket kodo.Bucket, paths []string) ([]R, error)
+type batchAction[R batchKodoResult] func(bucket kodo.Bucket, paths []string) ([]R, error)
 
 // 批处理结果代码解析
-type batchResultCodeGetter[R batchResult] func(result R) (code int)
+type batchKodoResultCodeGetter[R batchKodoResult] func(result R) (code int)
 
-// batchErrorBuilder 错误构造器
-type batchErrorBuilder[R batchResult, E batchError] func(code int, path string, r R) *E
+// batchResultBuilder 错误构造器
+type batchResultBuilder[R batchKodoResult, E batchResult] func(code int, path string, r R) *E
 
-// batchErrorMessageGetter 错误信息解析器
-type batchErrorMessageGetter[E batchError] func(err *E) (code int, path string)
+// batchResultMessageParser 错误信息解析器
+type batchResultMessageParser[E batchResult] func(err *E) (code int, path string)
 
-type batchKeysWithRetries[R batchResult, E batchError] struct {
+type batchKeysWithRetries[R batchKodoResult, E batchResult] struct {
 	l                  *singleClusterLister
 	pool               *goroutine_pool.GoroutinePool
 	paths              []string
@@ -46,12 +48,12 @@ type batchKeysWithRetries[R batchResult, E batchError] struct {
 	batchSize        int
 	batchConcurrency int
 
-	errorBuilder       batchErrorBuilder[R, E]    // 构造错误的函数
-	errorMessageGetter batchErrorMessageGetter[E] // 获取错误相关信息的函数
-	resultCodeGetter   batchResultCodeGetter[R]   // 获取结果代码的函数
+	resultBuilder        batchResultBuilder[R, E]
+	resultMessageParser  batchResultMessageParser[E]
+	kodoResultCodeGetter batchKodoResultCodeGetter[R]
 }
 
-func newBatchKeysWithRetries[R batchResult, E batchError](
+func newBatchKeysWithRetries[R batchKodoResult, E batchResult](
 	ctx context.Context,
 	l *singleClusterLister,
 	paths []string,
@@ -63,9 +65,10 @@ func newBatchKeysWithRetries[R batchResult, E batchError](
 
 	batchSize int, // 分批处理的大小与并发数
 	batchConcurrency int,
-	errorBuilder batchErrorBuilder[R, E], // 构造错误的函数
-	errorMessageGetter batchErrorMessageGetter[E], // 获取错误相关信息的函数
-	resultCodeGetter batchResultCodeGetter[R], // 获取结果代码的函数
+
+	resultBuilder batchResultBuilder[R, E],
+	resultMessageParser batchResultMessageParser[E],
+	kodoResultCodeGetter batchKodoResultCodeGetter[R],
 ) *batchKeysWithRetries[R, E] {
 	// 并发数计算
 	concurrency := (len(paths) + l.batchSize - 1) / l.batchSize
@@ -73,21 +76,21 @@ func newBatchKeysWithRetries[R batchResult, E batchError](
 		concurrency = l.batchConcurrency
 	}
 	return &batchKeysWithRetries[R, E]{
-		ctx:                ctx,
-		l:                  l,
-		pool:               goroutine_pool.NewGoroutinePool(concurrency),
-		paths:              paths,
-		retries:            retries,
-		failedRsHosts:      make(map[string]struct{}),
-		errors:             make([]*E, len(paths)),
-		actionName:         actionName,
-		action:             action,
-		actionMaxRetries:   actionMaxRetries,
-		batchSize:          batchSize,
-		batchConcurrency:   batchConcurrency,
-		errorBuilder:       errorBuilder,
-		errorMessageGetter: errorMessageGetter,
-		resultCodeGetter:   resultCodeGetter,
+		ctx:                  ctx,
+		l:                    l,
+		pool:                 goroutine_pool.NewGoroutinePool(concurrency),
+		paths:                paths,
+		retries:              retries,
+		failedRsHosts:        make(map[string]struct{}),
+		errors:               make([]*E, len(paths)),
+		actionName:           actionName,
+		action:               action,
+		actionMaxRetries:     actionMaxRetries,
+		batchSize:            batchSize,
+		batchConcurrency:     batchConcurrency,
+		resultBuilder:        resultBuilder,
+		resultMessageParser:  resultMessageParser,
+		kodoResultCodeGetter: kodoResultCodeGetter,
 	}
 }
 
@@ -147,12 +150,12 @@ func (d *batchKeysWithRetries[R, E]) pushAllTaskToPool() {
 
 				// 批量删除的结果，过滤掉成功的，记录失败的到 errors 中
 				for j, v := range res {
-					if code := d.resultCodeGetter(v); code == 200 {
+					if code := d.kodoResultCodeGetter(v); code == 200 {
 						d.errors[index+j] = nil
 						continue
 					} else {
-						err := d.errorBuilder(code, paths[j], v)
-						d.errors[index+j] = d.errorBuilder(code, paths[j], v)
+						err := d.resultBuilder(code, paths[j], v)
+						d.errors[index+j] = d.resultBuilder(code, paths[j], v)
 						elog.Warn(d.actionName, " bad file:", paths[j], "with error:", err)
 					}
 				}
@@ -185,7 +188,7 @@ func (d *batchKeysWithRetries[R, E]) doAndRetryAction() ([]*E, error) {
 	for i, e := range d.errors {
 		// 对于所有的5xx错误，都记录下来，等待重试
 		if e != nil {
-			errorCode, errorPath := d.errorMessageGetter(e)
+			errorCode, errorPath := d.resultMessageParser(e)
 			if errorCode/100 == 5 {
 				d.failedPathIndexMap = append(d.failedPathIndexMap, i)
 				d.failedPath = append(d.failedPath, errorPath)

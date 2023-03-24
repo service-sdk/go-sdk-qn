@@ -318,3 +318,10 @@ func TestDeleteLotsFile(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, lister.ListPrefix(""))
 }
+
+func TestListStatLotsFile(t *testing.T) {
+	paths := makeLotsFiles(t, 5000, 500)
+	defer lister.DeleteKeys(paths)
+	stats := lister.ListStat(paths)
+	assert.Equal(t, 5000, len(stats))
+}
