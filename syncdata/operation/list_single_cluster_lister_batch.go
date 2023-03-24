@@ -21,9 +21,6 @@ type batchInput interface {
 // batchAction 批量操作的动作
 type batchAction[R batchKodoResult, I batchInput] func(bucket kodo.Bucket, paths []I) ([]R, error)
 
-// 批处理结果代码解析
-type batchKodoResultCodeGetter[R batchKodoResult] func(result R) (code int)
-
 // batchResultBuilder 错误构造器
 type batchResultBuilder[R batchKodoResult, O batchOutput, I batchInput] func(path I, r R) *O
 
@@ -54,9 +51,8 @@ type batchKeysWithRetries[R batchKodoResult, O batchOutput, I batchInput] struct
 	batchSize        int
 	batchConcurrency int
 
-	resultBuilder        batchResultBuilder[R, O, I]
-	resultMessageParser  batchResultMessageParser[O, I]
-	kodoResultCodeGetter batchKodoResultCodeGetter[R]
+	resultBuilder       batchResultBuilder[R, O, I]
+	resultMessageParser batchResultMessageParser[O, I]
 }
 
 func newBatchKeysWithRetries[R batchKodoResult, O batchOutput, I batchInput](
@@ -74,7 +70,6 @@ func newBatchKeysWithRetries[R batchKodoResult, O batchOutput, I batchInput](
 
 	resultBuilder batchResultBuilder[R, O, I],
 	resultMessageParser batchResultMessageParser[O, I],
-	kodoResultCodeGetter batchKodoResultCodeGetter[R],
 ) *batchKeysWithRetries[R, O, I] {
 	// 并发数计算
 	concurrency := (len(inputs) + l.batchSize - 1) / l.batchSize
@@ -82,21 +77,20 @@ func newBatchKeysWithRetries[R batchKodoResult, O batchOutput, I batchInput](
 		concurrency = l.batchConcurrency
 	}
 	return &batchKeysWithRetries[R, O, I]{
-		ctx:                  ctx,
-		l:                    l,
-		pool:                 goroutine_pool.NewGoroutinePool(concurrency),
-		inputs:               inputs,
-		retries:              retries,
-		failedRsHosts:        make(map[string]struct{}),
-		outputs:              make([]*O, len(inputs)),
-		actionName:           actionName,
-		action:               action,
-		actionMaxRetries:     actionMaxRetries,
-		batchSize:            batchSize,
-		batchConcurrency:     batchConcurrency,
-		resultBuilder:        resultBuilder,
-		resultMessageParser:  resultMessageParser,
-		kodoResultCodeGetter: kodoResultCodeGetter,
+		ctx:                 ctx,
+		l:                   l,
+		pool:                goroutine_pool.NewGoroutinePool(concurrency),
+		inputs:              inputs,
+		retries:             retries,
+		failedRsHosts:       make(map[string]struct{}),
+		outputs:             make([]*O, len(inputs)),
+		actionName:          actionName,
+		action:              action,
+		actionMaxRetries:    actionMaxRetries,
+		batchSize:           batchSize,
+		batchConcurrency:    batchConcurrency,
+		resultBuilder:       resultBuilder,
+		resultMessageParser: resultMessageParser,
 	}
 }
 

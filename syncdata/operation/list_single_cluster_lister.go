@@ -285,9 +285,6 @@ func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []s
 		/*resultParser*/ func(err *FileStat) (code int, path string) {
 			return err.code, err.Name
 		},
-		func(result kodo.BatchStatItemRet) (code int) {
-			return result.Code
-		},
 	).doAndRetryAction()
 }
 
@@ -350,9 +347,6 @@ func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context,
 		},
 		func(err *DeleteKeysError) (code int, path string) {
 			return err.Code, err.Name
-		},
-		func(result kodo.BatchItemRet) (code int) {
-			return result.Code
 		},
 	).doAndRetryAction()
 }
@@ -452,9 +446,6 @@ func (l *singleClusterLister) copyKeys(ctx context.Context, fromToKeys []CopyKey
 				FromKey: err.FromKey,
 				ToKey:   err.ToKey,
 			}
-		},
-		func(result kodo.BatchItemRet) (code int) {
-			return result.Code
 		},
 	).doAndRetryAction()
 }
