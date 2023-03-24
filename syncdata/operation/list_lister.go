@@ -177,32 +177,130 @@ func (l *Lister) RenameDirectory(srcDir, destDir string) (renameErrors []RenameK
 }
 
 // MoveDirectoryTo 目录级别的Move操作
-func (l *Lister) MoveDirectoryTo(srcDir, destDir string) error {
-	// TODO
-	return nil
+func (l *Lister) MoveDirectoryTo(srcDir, destDir, toBucket string) (moveErrors []MoveKeysError, err error) {
+	pool := goroutine_pool.NewGoroutinePool(20)
+	srcDirKey := makeSureKeyAsDir(srcDir)
+	destDirKey := makeSureKeyAsDir(destDir)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	// 处理错误
+	resultErrors := make(chan MoveKeysError, 100)
+	go func() {
+		defer wg.Done()
+		for e := range resultErrors {
+			moveErrors = append(moveErrors, e)
+		}
+	}()
+
+	// 列举所有的文件
+	ch1 := make(chan string, 100)
+	pool.Go(func(ctx context.Context) error {
+		err = l.listPrefixToChannel(context.Background(), srcDirKey, ch1)
+		if err != nil {
+			return err
+		}
+		close(ch1)
+		return nil
+	})
+
+	// move所有的文件
+	ch2 := make(chan MoveKeyInput, 100)
+	go func() {
+		for key := range ch1 {
+			// replaceFirst
+			destKey := destDirKey + key[len(srcDirKey):]
+			ch2 <- MoveKeyInput{
+				FromToKey: FromToKey{
+					FromKey: key,
+					ToKey:   destKey,
+				},
+				toBucket: toBucket,
+			}
+		}
+		close(ch2)
+	}()
+
+	// 创建多个协程，同时执行Rename操作
+	pool.Go(func(ctx context.Context) error {
+		err := l.moveKeysFromChannel(context.Background(), ch2, resultErrors)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	// 等待所有的lister生产者和rename消费者结束
+	err = pool.Wait(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	// 等待append结束返回
+	close(resultErrors)
+	wg.Wait()
+	return moveErrors, nil
 }
 
 // CopyDirectory 目录级别的Copy操作
-func (l *Lister) CopyDirectory(srcDir, destDir string) error {
-	ch := make(chan string, 100)
-	pool := goroutine_pool.NewGoroutinePool(10)
+func (l *Lister) CopyDirectory(srcDir, destDir string) (copyErrors []CopyKeysError, err error) {
+	pool := goroutine_pool.NewGoroutinePool(20)
+	srcDirKey := makeSureKeyAsDir(srcDir)
+	destDirKey := makeSureKeyAsDir(destDir)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	// 处理错误
+	resultErrors := make(chan CopyKeysError, 100)
+	go func() {
+		defer wg.Done()
+		for e := range resultErrors {
+			copyErrors = append(copyErrors, e)
+		}
+	}()
+
+	// 列举所有的文件
+	ch1 := make(chan string, 100)
 	pool.Go(func(ctx context.Context) error {
-		//var keys []string
-		//for key := range ch {
-		//	keys = append(keys, key)
-		//	if len(keys) >= 100 {
-		//		l.CopyKeys(keys, destDir)
-		//		keys = nil
-		//	}
-		//}
+		err = l.listPrefixToChannel(context.Background(), srcDirKey, ch1)
+		if err != nil {
+			return err
+		}
+		close(ch1)
 		return nil
 	})
-	err := l.listPrefixToChannel(context.Background(), srcDir, ch)
+
+	// 复制所有的文件
+	ch2 := make(chan CopyKeyInput, 100)
+	go func() {
+		for key := range ch1 {
+			// replaceFirst
+			destKey := destDirKey + key[len(srcDirKey):]
+			ch2 <- CopyKeyInput{
+				FromKey: key,
+				ToKey:   destKey,
+			}
+		}
+		close(ch2)
+	}()
+
+	// 创建多个协程，同时执行Rename操作
+	pool.Go(func(ctx context.Context) error {
+		err := l.copyKeysFromChannel(context.Background(), ch2, resultErrors)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	// 等待所有的lister生产者和rename消费者结束
+	err = pool.Wait(context.Background())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	// 等待append结束返回
+	close(resultErrors)
+	wg.Wait()
+	return copyErrors, nil
 }
 
 // DeleteDirectory 目录级别的Delete操作
