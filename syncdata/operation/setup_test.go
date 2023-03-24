@@ -1,7 +1,6 @@
-package test
+package operation
 
 import (
-	"github.com/service-sdk/go-sdk-qn/syncdata/operation"
 	"os"
 	"strings"
 	"testing"
@@ -9,14 +8,14 @@ import (
 
 var (
 	skipTest = true
-	config   *operation.Config
-	lister   *operation.Lister
-	uploader *operation.Uploader
+	config   *Config
+	lister   *Lister
+	uploader *Uploader
 )
 
 func setup() {
 	skipTest = os.Getenv("QINIU_KODO_TEST") == ""
-	config = &operation.Config{
+	config = &Config{
 		Ak:      os.Getenv("QINIU_ACCESS_KEY"),
 		Sk:      os.Getenv("QINIU_SECRET_KEY"),
 		UpHosts: strings.Split(os.Getenv("QINIU_TEST_UP_HOSTS"), ","),
@@ -43,8 +42,8 @@ func setup() {
 		Bucket: os.Getenv("QINIU_TEST_BUCKET"),
 		//RecycleBin: "recycle",
 	}
-	lister = operation.NewLister(config)
-	uploader = operation.NewUploader(config)
+	lister = NewLister(config)
+	uploader = NewUploader(config)
 }
 
 func TestMain(t *testing.M) {

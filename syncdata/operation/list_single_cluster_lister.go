@@ -351,6 +351,7 @@ func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context,
 	).doAndRetryAction()
 }
 
+// 列举指定前缀的文件到channel中
 func (l *singleClusterLister) listPrefixToChannel(ctx context.Context, prefix string, ch chan<- string) error {
 	marker := ""
 	for {
@@ -425,9 +426,9 @@ func (l *singleClusterLister) newBucket(host, rsfHost, apiHost string) kodo.Buck
 	return *kodo.NewBucket(client, l.bucket)
 }
 
-func (l *singleClusterLister) copyKeys(ctx context.Context, fromToKeys []CopyKeyInput) ([]*CopyKeysError, error) {
+func (l *singleClusterLister) copyKeys(ctx context.Context, input []CopyKeyInput) ([]*CopyKeysError, error) {
 	return newBatchKeysWithRetries(
-		/*context*/ ctx, l, fromToKeys, 10,
+		/*context*/ ctx, l, input, 10,
 		"copy",
 		/*action*/ func(bucket kodo.Bucket, fromToKeys []CopyKeyInput) ([]kodo.BatchItemRet, error) {
 			return bucket.BatchCopy(ctx)
@@ -448,6 +449,28 @@ func (l *singleClusterLister) copyKeys(ctx context.Context, fromToKeys []CopyKey
 			}
 		},
 	).doAndRetryAction()
+}
+
+// 从channel中读取数据并批量复制
+func (l *singleClusterLister) copyKeysFromChannel(ctx context.Context, input <-chan CopyKeyInput) error {
+	var batch []CopyKeyInput
+	for in := range input {
+		batch = append(batch, in)
+		if len(batch) >= l.batchSize {
+			_, err := l.copyKeys(ctx, batch)
+			if err != nil {
+				return err
+			}
+			batch = batch[:0]
+		}
+	}
+	if len(batch) > 0 {
+		_, err := l.copyKeys(ctx, batch)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error) {
