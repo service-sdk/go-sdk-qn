@@ -133,7 +133,7 @@ func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) 
 		close(ch2)
 	}()
 
-	err := l.copyKeysFromChannel(context.Background(), ch2)
+	err := l.copyKeysFromChannel(context.Background(), ch2, nil)
 	assert.NoError(t, err)
 
 	r, err := l.listPrefix(context.Background(), "CopyKeyFromChannel")
@@ -233,7 +233,7 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := l.moveKeysFromChannel(context.Background(), ch2)
+			err := l.moveKeysFromChannel(context.Background(), ch2, nil)
 			assert.NoError(t, err)
 		}()
 	}

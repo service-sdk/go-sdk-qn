@@ -651,6 +651,9 @@ func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyI
 		}
 		var renameKeysErrors []*RenameKeysError
 		for _, e := range moveKeysErrors {
+			if e == nil {
+				continue
+			}
 			renameKeysErrors = append(renameKeysErrors, &RenameKeysError{
 				Error:   e.Error,
 				Code:    e.Code,
