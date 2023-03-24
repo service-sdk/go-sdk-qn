@@ -201,7 +201,7 @@ func (d *batchKeysWithRetries[R, O, I]) doAndRetryAction() ([]*O, error) {
 		// 将失败的文件进行重试
 		d.retries--
 		d.retried++
-		retriedOrrors, err := d.doAndRetryAction()
+		retriedErrors, err := d.doAndRetryAction()
 
 		// 如果重试出错了，直接返回错误
 		if err != nil {
@@ -209,8 +209,8 @@ func (d *batchKeysWithRetries[R, O, I]) doAndRetryAction() ([]*O, error) {
 		}
 
 		// 如果重试成功了，那么把重试的结果合并到原来的结果中
-		for i, retriedOrror := range retriedOrrors {
-			d.outputs[d.failedInputsIndexMap[i]] = retriedOrror
+		for i, retriedError := range retriedErrors {
+			d.outputs[d.failedInputsIndexMap[i]] = retriedError
 		}
 	}
 	// 返回所有的错误

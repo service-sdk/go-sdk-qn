@@ -146,24 +146,6 @@ func (l *singleClusterLister) nextApiServerHost(failedHosts map[string]struct{})
 	}
 }
 
-// 通过调用 move API 来重命名
-func (l *singleClusterLister) renameByCallingMoveAPI(fromKey, toKey string) (err error) {
-	failedRsHosts := make(map[string]struct{})
-	for i := 0; i < 2; i++ {
-		host := l.nextRsHost(failedRsHosts)
-		bucket := l.newBucket(host, "", "")
-		err = bucket.Move(nil, fromKey, toKey)
-		if !isServerError(err) {
-			succeedHostName(host)
-			return err
-		}
-		failedRsHosts[host] = struct{}{}
-		failHostName(host)
-		elog.Info("move retry", i, host, err)
-	}
-	return err
-}
-
 // 通过调用 rename API 来重命名
 func (l *singleClusterLister) renameByCallingRenameAPI(ctx context.Context, fromKey, toKey string) (err error) {
 	failedApiServerHosts := make(map[string]struct{})
@@ -185,9 +167,8 @@ func (l *singleClusterLister) renameByCallingRenameAPI(ctx context.Context, from
 func (l *singleClusterLister) rename(fromKey, toKey string) error {
 	if l.enableRecycleBin() { // 启用回收站功能表示 RENAME API 可用
 		return l.renameByCallingRenameAPI(context.Background(), fromKey, toKey)
-	} else {
-		return l.renameByCallingMoveAPI(fromKey, toKey)
 	}
+	return l.moveTo(fromKey, l.bucket, toKey)
 }
 
 func (l *singleClusterLister) moveTo(fromKey, toBucket, toKey string) (err error) {
@@ -205,7 +186,6 @@ func (l *singleClusterLister) moveTo(fromKey, toBucket, toKey string) (err error
 		elog.Info("move retry", i, host, err)
 	}
 	return err
-
 }
 
 func (l *singleClusterLister) copy(fromKey, toKey string) (err error) {
@@ -639,6 +619,34 @@ func (l *singleClusterLister) moveKeysFromChannel(ctx context.Context, input <-c
 }
 
 func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
+	// 未开启回收站，就直接调用move接口替代
+	if !l.enableRecycleBin() {
+		var moveKeys []MoveKeyInput
+		for _, e := range input {
+			moveKeys = append(moveKeys, MoveKeyInput{
+				FromToKey: FromToKey{
+					FromKey: e.FromKey,
+					ToKey:   e.ToKey,
+				},
+				toBucket: l.bucket,
+			})
+		}
+		moveKeysErrors, err := l.moveKeys(ctx, moveKeys)
+		if err != nil {
+			return nil, err
+		}
+		var renameKeysErrors []*RenameKeysError
+		for _, e := range moveKeysErrors {
+			renameKeysErrors = append(renameKeysErrors, &RenameKeysError{
+				Error:   e.Error,
+				Code:    e.Code,
+				FromKey: e.FromKey,
+				ToKey:   e.ToKey,
+			})
+		}
+		return renameKeysErrors, nil
+	}
+	// 开启回收站，就调用rename接口
 	return newBatchKeysWithRetries(
 		/*context*/ ctx, l, input, 10,
 		"rename",
