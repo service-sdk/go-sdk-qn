@@ -268,7 +268,27 @@ func TestLister_ForceDeleteKeys(t *testing.T) {
 
 func TestLister_RenameDirectory(t *testing.T) {
 	checkSkipTest(t)
+	clearBucket(t)
 
+	keys := []string{
+		"test11", "test12", "test13",
+		"test1/test1", "test1/test2", "test1/test3",
+		"test2/test1", "test2/test2", "test2/test3",
+	}
+	// 创建目录与目录文件
+	for _, key := range keys {
+		err := uploader.UploadData([]byte("test"), key)
+		assert.NoError(t, err)
+	}
+
+	// 移动目录
+	copyErrors, err := lister.RenameDirectory("test1", "test3")
+	assert.NoError(t, err)
+	assert.Empty(t, copyErrors)
+
+	// 列举出所有文件
+	result := lister.ListPrefix("")
+	fmt.Println(result)
 }
 
 func TestLister_MoveDirectoryTo(t *testing.T) {
@@ -277,11 +297,33 @@ func TestLister_MoveDirectoryTo(t *testing.T) {
 }
 func TestLister_CopyDirectory(t *testing.T) {
 	checkSkipTest(t)
+	clearBucket(t)
+
+	keys := []string{
+		"test11", "test12", "test13",
+		"test1/test1", "test1/test2", "test1/test3",
+		"test2/test1", "test2/test2", "test2/test3",
+	}
+	// 创建目录与目录文件
+	for _, key := range keys {
+		err := uploader.UploadData([]byte("test"), key)
+		assert.NoError(t, err)
+	}
+
+	// 复制目录
+	copyErrors, err := lister.CopyDirectory("test1", "test3")
+	assert.NoError(t, err)
+	assert.Empty(t, copyErrors)
+
+	// 列举出所有文件
+	result := lister.ListPrefix("")
+	fmt.Println(result)
 
 }
 
 func TestLister_DeleteDirectory(t *testing.T) {
 	checkSkipTest(t)
+	clearBucket(t)
 
 }
 
