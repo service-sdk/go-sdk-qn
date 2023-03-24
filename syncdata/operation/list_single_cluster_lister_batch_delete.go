@@ -7,7 +7,22 @@ import (
 	"sync"
 )
 
-type deleteAsDeleteKeysWithRetries struct {
+type batchResult interface{ kodo.BatchItemRet }
+type batchError interface{ DeleteKeysError }
+
+// batchAction 批量操作的动作
+type batchAction[R batchResult] func(bucket kodo.Bucket, paths []string) ([]R, error)
+
+// 批处理结果代码解析
+type batchResultCodeGetter[R batchResult] func(result R) (code int)
+
+// batchErrorBuilder 错误构造器
+type batchErrorBuilder[R batchResult, E batchError] func(code int, path string, r R) *E
+
+// batchErrorMessageGetter 错误信息解析器
+type batchErrorMessageGetter[E batchError] func(err *E) (code int, path string)
+
+type batchKeysWithRetries[R batchResult, E batchError] struct {
 	l                  *singleClusterLister
 	pool               *goroutine_pool.GoroutinePool
 	paths              []string
@@ -18,51 +33,66 @@ type deleteAsDeleteKeysWithRetries struct {
 	failedRsHosts      map[string]struct{}
 	failedRsHostsLock  sync.RWMutex
 	ctx                context.Context
-	errors             []*DeleteKeysError
+	errors             []*E
+
+	// 动作名称
+	actionName string
 
 	// 动作与动作最大重试次数
-	action           func(bucket kodo.Bucket, paths []string) ([]kodo.BatchItemRet, error)
+	action           batchAction[R]
 	actionMaxRetries uint
 
 	// 分批处理的大小与并发数
 	batchSize        int
 	batchConcurrency int
+
+	errorBuilder       batchErrorBuilder[R, E]    // 构造错误的函数
+	errorMessageGetter batchErrorMessageGetter[E] // 获取错误相关信息的函数
+	resultCodeGetter   batchResultCodeGetter[R]   // 获取结果代码的函数
 }
 
-func newDeleteAsDeleteKeysWithRetries(
+func newBatchKeysWithRetries[R batchResult, E batchError](
 	ctx context.Context,
 	l *singleClusterLister,
 	paths []string,
 	retries uint,
-	action func(bucket kodo.Bucket, paths []string) ([]kodo.BatchItemRet, error),
+
+	actionName string,
+	action func(bucket kodo.Bucket, paths []string) ([]R, error),
 	actionMaxRetries uint,
 
-	// 分批处理的大小与并发数
-	batchSize int,
+	batchSize int, // 分批处理的大小与并发数
 	batchConcurrency int,
-) *deleteAsDeleteKeysWithRetries {
+	errorBuilder batchErrorBuilder[R, E], // 构造错误的函数
+	errorMessageGetter batchErrorMessageGetter[E], // 获取错误相关信息的函数
+	resultCodeGetter batchResultCodeGetter[R], // 获取结果代码的函数
+) *batchKeysWithRetries[R, E] {
 	// 并发数计算
 	concurrency := (len(paths) + l.batchSize - 1) / l.batchSize
 	if concurrency > l.batchConcurrency {
 		concurrency = l.batchConcurrency
 	}
-	return &deleteAsDeleteKeysWithRetries{
-		ctx:              ctx,
-		l:                l,
-		pool:             goroutine_pool.NewGoroutinePool(concurrency),
-		paths:            paths,
-		retries:          retries,
-		failedRsHosts:    make(map[string]struct{}),
-		errors:           make([]*DeleteKeysError, len(paths)),
-		action:           action,
-		actionMaxRetries: actionMaxRetries,
-		batchSize:        batchSize,
-		batchConcurrency: batchConcurrency,
+	return &batchKeysWithRetries[R, E]{
+		ctx:                ctx,
+		l:                  l,
+		pool:               goroutine_pool.NewGoroutinePool(concurrency),
+		paths:              paths,
+		retries:            retries,
+		failedRsHosts:      make(map[string]struct{}),
+		errors:             make([]*E, len(paths)),
+		actionName:         actionName,
+		action:             action,
+		actionMaxRetries:   actionMaxRetries,
+		batchSize:          batchSize,
+		batchConcurrency:   batchConcurrency,
+		errorBuilder:       errorBuilder,
+		errorMessageGetter: errorMessageGetter,
+		resultCodeGetter:   resultCodeGetter,
 	}
 }
 
 // 执行一次动作
-func (d *deleteAsDeleteKeysWithRetries) doActionOnce(paths []string) ([]kodo.BatchItemRet, error) {
+func (d *batchKeysWithRetries[R, E]) doActionOnce(paths []string) ([]R, error) {
 	// 获取一个 rs host
 	d.failedRsHostsLock.RLock()
 	defer d.failedRsHostsLock.RUnlock()
@@ -88,7 +118,7 @@ func (d *deleteAsDeleteKeysWithRetries) doActionOnce(paths []string) ([]kodo.Bat
 	return nil, err
 }
 
-func (d *deleteAsDeleteKeysWithRetries) doAction(paths []string) (r []kodo.BatchItemRet, err error) {
+func (d *batchKeysWithRetries[R, E]) doAction(paths []string) (r []R, err error) {
 	for i := uint(0); i < d.actionMaxRetries; i++ {
 		r, err = d.doActionOnce(paths)
 		// 没有错误，直接返回
@@ -99,7 +129,7 @@ func (d *deleteAsDeleteKeysWithRetries) doAction(paths []string) (r []kodo.Batch
 	return nil, err
 }
 
-func (d *deleteAsDeleteKeysWithRetries) pushAllTaskToPool() {
+func (d *batchKeysWithRetries[R, E]) pushAllTaskToPool() {
 	// 将任务进行分批处理
 	for i := 0; i < len(d.paths); i += d.l.batchSize {
 		// 计算本次批量处理的数量
@@ -108,7 +138,7 @@ func (d *deleteAsDeleteKeysWithRetries) pushAllTaskToPool() {
 			size = len(d.paths) - i
 		}
 
-		// paths 是这批要删除的文件
+		// paths 是这批要处理的文件
 		// index 是这批文件的起始位置
 		func(paths []string, index int) {
 			d.pool.Go(func(ctx context.Context) error {
@@ -117,16 +147,14 @@ func (d *deleteAsDeleteKeysWithRetries) pushAllTaskToPool() {
 
 				// 批量删除的结果，过滤掉成功的，记录失败的到 errors 中
 				for j, v := range res {
-					if v.Code == 200 {
+					if code := d.resultCodeGetter(v); code == 200 {
 						d.errors[index+j] = nil
 						continue
+					} else {
+						err := d.errorBuilder(code, paths[j], v)
+						d.errors[index+j] = d.errorBuilder(code, paths[j], v)
+						elog.Warn(d.actionName, " bad file:", paths[j], "with error:", err)
 					}
-					d.errors[index+j] = &DeleteKeysError{
-						Name:  paths[j],
-						Error: v.Error,
-						Code:  v.Code,
-					}
-					elog.Warn("delete bad file:", paths[j], "with code:", v.Code)
 				}
 				return nil
 			})
@@ -134,16 +162,16 @@ func (d *deleteAsDeleteKeysWithRetries) pushAllTaskToPool() {
 	}
 }
 
-func (d *deleteAsDeleteKeysWithRetries) waitAllTask() error {
-	// 等待所有的批量删除任务完成，如果出错了，直接结束返回错误
+func (d *batchKeysWithRetries[R, E]) waitAllTask() error {
+	// 等待所有的批量任务完成，如果出错了，直接结束返回错误
 	return d.pool.Wait(d.ctx)
 }
 
-func (d *deleteAsDeleteKeysWithRetries) doAndRetryAction() ([]*DeleteKeysError, error) {
-	// 把所有的批量删除任务放到 goroutine pool 中
+func (d *batchKeysWithRetries[R, E]) doAndRetryAction() ([]*E, error) {
+	// 把所有的批量任务放到 goroutine pool 中
 	d.pushAllTaskToPool()
 
-	// 等待所有的批量删除任务完成
+	// 等待所有的批量任务完成
 	if err := d.waitAllTask(); err != nil {
 		return nil, err
 	}
@@ -156,16 +184,19 @@ func (d *deleteAsDeleteKeysWithRetries) doAndRetryAction() ([]*DeleteKeysError, 
 	// 如果期望重试的次数大于0，那么尝试一次重试
 	for i, e := range d.errors {
 		// 对于所有的5xx错误，都记录下来，等待重试
-		if e != nil && e.Code/100 == 5 {
-			d.failedPathIndexMap = append(d.failedPathIndexMap, i)
-			d.failedPath = append(d.failedPath, e.Name)
-			elog.Warn("redelete bad file:", e.Name, "with code:", e.Code)
+		if e != nil {
+			errorCode, errorPath := d.errorMessageGetter(e)
+			if errorCode/100 == 5 {
+				d.failedPathIndexMap = append(d.failedPathIndexMap, i)
+				d.failedPath = append(d.failedPath, errorPath)
+				elog.Warn("retry", d.actionName, " bad file:", errorPath, "with code:", errorCode)
+			}
 		}
 	}
 
 	// 如果有需要重试的文件，那么进行重试
 	if len(d.failedPath) > 0 {
-		elog.Warn("redelete ", len(d.failedPath), " bad files, retried:", d.retried)
+		elog.Warn(d.actionName, " ", len(d.failedPath), " bad files, retried:", d.retried)
 
 		// 将失败的文件进行重试
 		d.retries--

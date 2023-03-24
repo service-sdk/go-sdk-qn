@@ -401,11 +401,22 @@ func (l *singleClusterLister) renameAsDeleteKeys(ctx context.Context, paths []st
 
 // 带重试逻辑的批量删除
 func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context, paths []string, retries uint) ([]*DeleteKeysError, error) {
-	return newDeleteAsDeleteKeysWithRetries(context.Background(), l, paths, retries,
-		func(bucket kodo.Bucket, paths []string) ([]kodo.BatchItemRet, error) {
+	return newBatchKeysWithRetries(
+		/*context*/ ctx, l, paths, retries,
+		"delete",
+		/*action*/ func(bucket kodo.Bucket, paths []string) ([]kodo.BatchItemRet, error) {
 			return bucket.BatchDelete(ctx, paths...)
 		},
 		2, l.batchSize, l.batchConcurrency,
+		func(code int, path string, r kodo.BatchItemRet) *DeleteKeysError {
+			return &DeleteKeysError{Code: r.Code, Name: path, Error: r.Error}
+		},
+		func(err *DeleteKeysError) (code int, path string) {
+			return err.Code, err.Name
+		},
+		func(result kodo.BatchItemRet) (code int) {
+			return result.Code
+		},
 	).doAndRetryAction()
 }
 
