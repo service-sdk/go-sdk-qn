@@ -451,11 +451,65 @@ func (l *singleClusterLister) copyKeys(ctx context.Context, fromToKeys []CopyKey
 }
 
 func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error) {
-	// TODO
-	return nil, nil
+	return newBatchKeysWithRetries(
+		/*context*/ ctx, l, input, 10,
+		"move",
+		/*action*/ func(bucket kodo.Bucket, fromToKeys []MoveKeyInput) ([]kodo.BatchItemRet, error) {
+			var entries []kodo.KeyPairEx
+			for _, e := range fromToKeys {
+				entries = append(entries, kodo.KeyPairEx{
+					SrcKey:     e.FromKey,
+					DestKey:    e.ToKey,
+					DestBucket: e.toBucket,
+				})
+			}
+			return bucket.BatchMove(ctx, entries...)
+		},
+		2, l.batchSize, l.batchConcurrency,
+		func(input MoveKeyInput, r kodo.BatchItemRet) *MoveKeysError {
+			return &MoveKeysError{
+				FromToKeyError: FromToKeyError{
+					Code:    r.Code,
+					FromKey: input.FromKey,
+					ToKey:   input.ToKey,
+					Error:   r.Error,
+				},
+				ToBucket: input.toBucket,
+			}
+		},
+		func(err *MoveKeysError) (code int, input MoveKeyInput) {
+			return err.Code, MoveKeyInput{
+				FromToKey: FromToKey{
+					FromKey: err.FromKey,
+					ToKey:   err.ToKey,
+				},
+				toBucket: err.ToBucket,
+			}
+		},
+	).doAndRetryAction()
 }
 
 func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
-	// TODO
-	return nil, nil
+	return newBatchKeysWithRetries(
+		/*context*/ ctx, l, input, 10,
+		"rename",
+		/*action*/ func(bucket kodo.Bucket, fromToKeys []RenameKeyInput) ([]kodo.BatchItemRet, error) {
+			return bucket.BatchRename(ctx)
+		},
+		2, l.batchSize, l.batchConcurrency,
+		func(fromToKey RenameKeyInput, r kodo.BatchItemRet) *RenameKeysError {
+			return &RenameKeysError{
+				Code:    r.Code,
+				FromKey: fromToKey.FromKey,
+				ToKey:   fromToKey.ToKey,
+				Error:   r.Error,
+			}
+		},
+		func(err *RenameKeysError) (code int, fromToKey RenameKeyInput) {
+			return err.Code, RenameKeyInput{
+				FromKey: err.FromKey,
+				ToKey:   err.ToKey,
+			}
+		},
+	).doAndRetryAction()
 }

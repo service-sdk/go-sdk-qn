@@ -121,9 +121,9 @@ func TestBatchMove(t *testing.T) {
 	defer clear()
 
 	// 批量测试
-	var pairs []kodo.KeyPair
+	var pairs []kodo.KeyPairEx
 	for _, tc := range testCases {
-		pairs = append(pairs, kodo.KeyPair{SrcKey: tc.key1, DestKey: tc.key2})
+		pairs = append(pairs, kodo.KeyPairEx{SrcKey: tc.key1, DestKey: tc.key2, DestBucket: bucketName})
 	}
 
 	rets, err := bucket.BatchMove(nil, pairs...)
