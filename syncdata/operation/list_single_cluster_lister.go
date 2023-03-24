@@ -26,7 +26,7 @@ type singleClusterLister struct {
 	recycleBin       string
 }
 
-func newSingleClusterLister(c *Config) clusterLister {
+func newSingleClusterLister(c *Config) *singleClusterLister {
 	mac := qbox.NewMac(c.Ak, c.Sk)
 
 	var queryer *Queryer = nil
@@ -288,6 +288,101 @@ func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []s
 	).doAndRetryAction()
 }
 
+func (l *singleClusterLister) deleteKeysFromChannel(
+	ctx context.Context,
+	keysChan <-chan string,
+	isForce bool,
+	errorsChan chan<- *DeleteKeysError,
+) error {
+	if !isForce && l.enableRecycleBin() {
+		// 非强制删除且启用回收站功能
+		return l.renameAsDeleteKeysFromChannel(ctx, keysChan, l.recycleBin, errorsChan)
+	} else {
+		return l.deleteAsDeleteKeysFromChannelWithRetries(ctx, keysChan, 10, errorsChan)
+	}
+}
+
+func (l *singleClusterLister) renameAsDeleteKeysFromChannel(
+	ctx context.Context,
+	keysChan <-chan string,
+	recycleBin string,
+	errorsChan chan<- *DeleteKeysError,
+) error {
+
+	batchKeys := make([]string, 0, l.batchSize)
+
+	// doOneBatch 用于执行一次批量删除操作
+	doOneBatch := func() error {
+		errors, err := l.renameAsDeleteKeys(ctx, batchKeys, recycleBin)
+		if err != nil {
+			return err
+		}
+		for _, e := range errors {
+			if e != nil {
+				errorsChan <- e
+			}
+		}
+		return nil
+	}
+
+	for key := range keysChan {
+		batchKeys = append(batchKeys, key)
+		if len(batchKeys) >= l.batchSize {
+			if err := doOneBatch(); err != nil {
+				return err
+			}
+			batchKeys = batchKeys[:0]
+		}
+	}
+	if len(batchKeys) > 0 {
+		if err := doOneBatch(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (l *singleClusterLister) deleteAsDeleteKeysFromChannelWithRetries(
+	ctx context.Context,
+	keysChan <-chan string,
+	retries uint,
+	errorsChan chan<- *DeleteKeysError,
+) error {
+	batchKeys := make([]string, 0, l.batchSize)
+
+	// doOneBatch 用于执行一次批量删除操作
+	doOneBatch := func() error {
+		errors, err := l.deleteAsDeleteKeysWithRetries(ctx, batchKeys, retries)
+		if err != nil {
+			return err
+		}
+		for _, e := range errors {
+			if e != nil {
+				errorsChan <- e
+			}
+		}
+		return nil
+	}
+
+	for key := range keysChan {
+		batchKeys = append(batchKeys, key)
+		if len(batchKeys) >= l.batchSize {
+			if err := doOneBatch(); err != nil {
+				return err
+			}
+			batchKeys = batchKeys[:0]
+		}
+	}
+	if len(batchKeys) > 0 {
+		if err := doOneBatch(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (l *singleClusterLister) deleteKeys(ctx context.Context, keys []string, isForce bool) ([]*DeleteKeysError, error) {
 	if !isForce && l.enableRecycleBin() {
 		// 非强制删除且启用回收站功能
@@ -430,17 +525,24 @@ func (l *singleClusterLister) copyKeys(ctx context.Context, input []CopyKeyInput
 	return newBatchKeysWithRetries(
 		/*context*/ ctx, l, input, 10,
 		"copy",
-		/*action*/ func(bucket kodo.Bucket, fromToKeys []CopyKeyInput) ([]kodo.BatchItemRet, error) {
-			return bucket.BatchCopy(ctx)
+		/*action*/ func(bucket kodo.Bucket, input []CopyKeyInput) ([]kodo.BatchItemRet, error) {
+			var entries []kodo.KeyPair
+			for _, v := range input {
+				entries = append(entries, kodo.KeyPair{SrcKey: v.FromKey, DestKey: v.ToKey})
+			}
+			return bucket.BatchCopy(ctx, entries...)
 		},
 		2, l.batchSize, l.batchConcurrency,
 		func(fromToKey CopyKeyInput, r kodo.BatchItemRet) *CopyKeysError {
-			return &CopyKeysError{
-				Code:    r.Code,
-				FromKey: fromToKey.FromKey,
-				ToKey:   fromToKey.ToKey,
-				Error:   r.Error,
+			if code := r.Code; code != 200 {
+				return &CopyKeysError{
+					Code:    r.Code,
+					FromKey: fromToKey.FromKey,
+					ToKey:   fromToKey.ToKey,
+					Error:   r.Error,
+				}
 			}
+			return nil
 		},
 		func(err *CopyKeysError) (code int, fromToKey CopyKeyInput) {
 			return err.Code, CopyKeyInput{

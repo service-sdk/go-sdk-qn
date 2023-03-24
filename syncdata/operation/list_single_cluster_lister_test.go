@@ -1,0 +1,174 @@
+package operation
+
+import (
+	"context"
+	"fmt"
+	"github.com/stretchr/testify/assert"
+	"sync"
+	"testing"
+)
+
+func getSingleClusterLister() *singleClusterLister {
+	return newSingleClusterLister(config)
+}
+
+// 上传，列举，拷贝，列举，删除，列举
+func TestSingleClusterLister_upload_listPrefix_copy_delete(t *testing.T) {
+	checkSkipTest(t)
+
+	err := uploader.UploadData(nil, "copy1")
+	assert.NoError(t, err)
+
+	l := getSingleClusterLister()
+
+	r, err := l.listPrefix(context.Background(), "copy1")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(r))
+	assert.Equal(t, "copy1", r[0])
+
+	err = l.copy("copy1", "copy2")
+	assert.NoError(t, err)
+
+	r, err = l.listPrefix(context.Background(), "copy2")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(r))
+	assert.Equal(t, "copy2", r[0])
+
+	err = l.delete("copy1", true)
+	assert.NoError(t, err)
+
+	err = l.delete("copy2", true)
+	assert.NoError(t, err)
+
+	r, err = l.listPrefix(context.Background(), "copy1")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(r))
+
+	r, err = l.listPrefix(context.Background(), "copy2")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(r))
+}
+
+// 上传，列举，删除
+func TestSingleClusterLister_upload_listPrefixToChannel_delete(t *testing.T) {
+	checkSkipTest(t)
+	l := getSingleClusterLister()
+
+	ch := make(chan string, 10)
+	for i := 0; i < 10; i++ {
+		err := uploader.UploadData(nil, fmt.Sprintf("listPrefixToChannel%d", i))
+		assert.NoError(t, err)
+	}
+
+	go func() {
+		err := l.listPrefixToChannel(context.Background(), "listPrefixToChannel", ch)
+		assert.NoError(t, err)
+		close(ch)
+	}()
+
+	for i := 0; i < 10; i++ {
+		key := <-ch
+		assert.Equal(t, fmt.Sprintf("listPrefixToChannel%d", i), key)
+		err := l.delete(key, true)
+		assert.NoError(t, err)
+	}
+}
+
+func TestSingleClusterLister_upload_copyKeys(t *testing.T) {
+	checkSkipTest(t)
+	l := getSingleClusterLister()
+
+	err := uploader.UploadData(nil, "copyKeys1")
+	assert.NoError(t, err)
+
+	_, err = l.copyKeys(context.Background(), []CopyKeyInput{
+		{FromKey: "copyKeys1", ToKey: "copyKeys11"},
+		{FromKey: "copyKeys1", ToKey: "copyKeys12"},
+	})
+	assert.NoError(t, err)
+
+	r, err := l.listPrefix(context.Background(), "copyKeys")
+	assert.NoError(t, err)
+	assert.Contains(t, r, "copyKeys1")
+	assert.Contains(t, r, "copyKeys11")
+	assert.Contains(t, r, "copyKeys12")
+
+	err = l.delete("copyKeys1", true)
+	assert.NoError(t, err)
+	err = l.delete("copyKeys11", true)
+	assert.NoError(t, err)
+	err = l.delete("copyKeys12", true)
+	assert.NoError(t, err)
+
+	r, err = l.listPrefix(context.Background(), "copyKeys")
+	assert.NoError(t, err)
+	assert.Empty(t, r)
+}
+
+// 上传，拷贝，列举
+func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) {
+	checkSkipTest(t)
+	l := getSingleClusterLister()
+
+	ch1 := make(chan string, 10)
+	ch2 := make(chan CopyKeyInput, 10)
+	for i := 0; i < 10; i++ {
+		err := uploader.UploadData(nil, fmt.Sprintf("CopyKeyFromChannel%d", i))
+		assert.NoError(t, err)
+	}
+
+	go func() {
+		err := l.listPrefixToChannel(context.Background(), "CopyKeyFromChannel", ch1)
+		assert.NoError(t, err)
+		close(ch1)
+	}()
+
+	go func() {
+		for key := range ch1 {
+			ch2 <- CopyKeyInput{
+				FromKey: key,
+				ToKey:   key + "copy",
+			}
+		}
+		close(ch2)
+	}()
+
+	err := l.copyKeysFromChannel(context.Background(), ch2)
+	assert.NoError(t, err)
+
+	r, err := l.listPrefix(context.Background(), "CopyKeyFromChannel")
+	assert.NoError(t, err)
+	assert.Equal(t, 20, len(r))
+
+	for i := 0; i < 20; i++ {
+		err := l.delete(r[i], true)
+		assert.NoError(t, err)
+	}
+}
+
+func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.T) {
+	checkSkipTest(t)
+	l := getSingleClusterLister()
+
+	// 批量上传10000个文件
+	makeLotsFiles(t, 10000, 500)
+
+	// 列举所有
+	ch := make(chan string, 1000)
+	go func() {
+		err := l.listPrefixToChannel(context.Background(), "", ch)
+		assert.NoError(t, err)
+		close(ch)
+	}()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := l.deleteKeysFromChannel(context.Background(), ch, true, nil)
+			assert.NoError(t, err)
+		}()
+	}
+	wg.Wait()
+}

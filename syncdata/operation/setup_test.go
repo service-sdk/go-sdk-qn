@@ -41,6 +41,7 @@ func setup() {
 		),
 		Bucket: os.Getenv("QINIU_TEST_BUCKET"),
 		//RecycleBin: "recycle",
+		BatchSize: 500,
 	}
 	lister = NewLister(config)
 	uploader = NewUploader(config)
