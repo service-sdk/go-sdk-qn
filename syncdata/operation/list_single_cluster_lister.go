@@ -272,7 +272,7 @@ func (l *singleClusterLister) deleteKeysFromChannel(
 	ctx context.Context,
 	keysChan <-chan string,
 	isForce bool,
-	errorsChan chan<- *DeleteKeysError,
+	errorsChan chan<- DeleteKeysError,
 ) error {
 	if !isForce && l.enableRecycleBin() {
 		// 非强制删除且启用回收站功能
@@ -286,7 +286,7 @@ func (l *singleClusterLister) renameAsDeleteKeysFromChannel(
 	ctx context.Context,
 	keysChan <-chan string,
 	recycleBin string,
-	errorsChan chan<- *DeleteKeysError,
+	errorsChan chan<- DeleteKeysError,
 ) error {
 
 	batchKeys := make([]string, 0, l.batchSize)
@@ -299,7 +299,7 @@ func (l *singleClusterLister) renameAsDeleteKeysFromChannel(
 		}
 		for _, e := range errors {
 			if e != nil {
-				errorsChan <- e
+				errorsChan <- *e
 			}
 		}
 		return nil
@@ -327,7 +327,7 @@ func (l *singleClusterLister) deleteAsDeleteKeysFromChannelWithRetries(
 	ctx context.Context,
 	keysChan <-chan string,
 	retries uint,
-	errorsChan chan<- *DeleteKeysError,
+	errorsChan chan<- DeleteKeysError,
 ) error {
 	batchKeys := make([]string, 0, l.batchSize)
 
@@ -339,7 +339,7 @@ func (l *singleClusterLister) deleteAsDeleteKeysFromChannelWithRetries(
 		}
 		for _, e := range errors {
 			if e != nil {
-				errorsChan <- e
+				errorsChan <- *e
 			}
 		}
 		return nil
@@ -534,14 +534,23 @@ func (l *singleClusterLister) copyKeys(ctx context.Context, input []CopyKeyInput
 }
 
 // 从channel中读取数据并批量复制
-func (l *singleClusterLister) copyKeysFromChannel(ctx context.Context, input <-chan CopyKeyInput) error {
+func (l *singleClusterLister) copyKeysFromChannel(
+	ctx context.Context,
+	input <-chan CopyKeyInput,
+	errorsChan chan<- CopyKeysError,
+) error {
 	var batch []CopyKeyInput
 	for in := range input {
 		batch = append(batch, in)
 		if len(batch) >= l.batchSize {
-			_, err := l.copyKeys(ctx, batch)
+			res, err := l.copyKeys(ctx, batch)
 			if err != nil {
 				return err
+			}
+			for _, r := range res {
+				if r != nil {
+					errorsChan <- *r
+				}
 			}
 			batch = batch[:0]
 		}
@@ -597,14 +606,19 @@ func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput
 	).doAndRetryAction()
 }
 
-func (l *singleClusterLister) moveKeysFromChannel(ctx context.Context, input <-chan MoveKeyInput) error {
+func (l *singleClusterLister) moveKeysFromChannel(ctx context.Context, input <-chan MoveKeyInput, errorsChan chan<- MoveKeysError) error {
 	var batch []MoveKeyInput
 	for in := range input {
 		batch = append(batch, in)
 		if len(batch) >= l.batchSize {
-			_, err := l.moveKeys(ctx, batch)
+			res, err := l.moveKeys(ctx, batch)
 			if err != nil {
 				return err
+			}
+			for _, r := range res {
+				if r != nil {
+					errorsChan <- *r
+				}
 			}
 			batch = batch[:0]
 		}
@@ -678,14 +692,19 @@ func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyI
 	).doAndRetryAction()
 }
 
-func (l *singleClusterLister) renameKeysFromChannel(ctx context.Context, input <-chan RenameKeyInput) error {
+func (l *singleClusterLister) renameKeysFromChannel(ctx context.Context, input <-chan RenameKeyInput, errorsChan chan<- RenameKeysError) error {
 	var batch []RenameKeyInput
 	for in := range input {
 		batch = append(batch, in)
 		if len(batch) >= l.batchSize {
-			_, err := l.renameKeys(ctx, batch)
+			res, err := l.renameKeys(ctx, batch)
 			if err != nil {
 				return err
+			}
+			for _, r := range res {
+				if r != nil {
+					errorsChan <- *r
+				}
 			}
 			batch = batch[:0]
 		}

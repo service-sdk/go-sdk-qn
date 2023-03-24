@@ -18,7 +18,7 @@ type multiClusterLister struct {
 	multiClustersConcurrency int
 }
 
-func newMultiClusterLister(config Configurable, multiClustersConcurrency int) clusterLister {
+func newMultiClusterLister(config Configurable, multiClustersConcurrency int) *multiClusterLister {
 	return &multiClusterLister{
 		config:                   config,
 		multiClustersConcurrency: multiClustersConcurrency,
@@ -204,14 +204,36 @@ func (l *multiClusterLister) deleteKeys(ctx context.Context, keys []string, isFo
 }
 
 func (l *multiClusterLister) copyKeys(ctx context.Context, input []CopyKeyInput) ([]*CopyKeysError, error) {
-	// TODO
-	return nil, nil
+	//TODO implement me
+	panic("implement me")
 }
+
 func (l *multiClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error) {
-	// TODO
-	return nil, nil
+	//TODO implement me
+	panic("implement me")
 }
+
 func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
-	// TODO
-	return nil, nil
+	//TODO implement me
+	panic("implement me")
+}
+
+func (l *multiClusterLister) deleteKeysFromChannel(ctx context.Context, keysChan <-chan string, isForce bool, errorsChan chan<- DeleteKeysError) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (l *multiClusterLister) copyKeysFromChannel(ctx context.Context, input <-chan CopyKeyInput, errorsChan chan<- CopyKeysError) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (l *multiClusterLister) moveKeysFromChannel(ctx context.Context, input <-chan MoveKeyInput, errorsChan chan<- MoveKeysError) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (l *multiClusterLister) renameKeysFromChannel(ctx context.Context, input <-chan RenameKeyInput, errorsChan chan<- RenameKeysError) error {
+	//TODO implement me
+	panic("implement me")
 }

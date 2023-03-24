@@ -114,48 +114,66 @@ func (l *Lister) RenameKeys(input []RenameKeyInput) ([]*RenameKeysError, error) 
 	return l.renameKeys(context.Background(), input)
 }
 
-type RenameDirectoryError struct {
-	srcKey  string
-	destKey string
-	err     error
-}
-
 // RenameDirectory 目录级别的Rename操作
-func (l *Lister) RenameDirectory(srcDir, destDir string) (renameErrors []RenameDirectoryError) {
-	var renameErrorsMutex sync.Mutex
+func (l *Lister) RenameDirectory(srcDir, destDir string) (renameErrors []RenameKeysError, err error) {
+	pool := goroutine_pool.NewGoroutinePool(20)
+	srcDirKey := makeSureKeyAsDir(srcDir)
+	destDirKey := makeSureKeyAsDir(destDir)
 
-	ch := make(chan string, 100)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	// 处理错误
+	resultErrors := make(chan RenameKeysError, 100)
+	go func() {
+		defer wg.Done()
+		for e := range resultErrors {
+			renameErrors = append(renameErrors, e)
+		}
+	}()
 
-	for i := 0; i < 10; i++ {
-		go func() {
-			for key := range ch {
-				destKey := destDir + key[len(srcDir):]
-				err := l.Rename(key, destKey)
+	// 列举所有的文件
+	ch1 := make(chan string, 100)
+	pool.Go(func(ctx context.Context) error {
+		err = l.listPrefixToChannel(context.Background(), srcDirKey, ch1)
+		if err != nil {
+			return err
+		}
+		close(ch1)
+		return nil
+	})
 
-				// 没有错误，继续
-				if err == nil {
-					continue
-				}
-
-				// 有错误，记录下来
-				func() {
-					renameErrorsMutex.Lock()
-					defer renameErrorsMutex.Unlock()
-					renameErrors = append(renameErrors, RenameDirectoryError{
-						srcKey:  key,
-						destKey: destKey,
-						err:     err,
-					})
-				}()
+	// 重命名所有的文件
+	ch2 := make(chan RenameKeyInput, 100)
+	go func() {
+		for key := range ch1 {
+			// replaceFirst
+			destKey := destDirKey + key[len(srcDirKey):]
+			ch2 <- RenameKeyInput{
+				FromKey: key,
+				ToKey:   destKey,
 			}
-		}()
+		}
+		close(ch2)
+	}()
+
+	// 创建多个协程，同时执行Rename操作
+	pool.Go(func(ctx context.Context) error {
+		err := l.renameKeysFromChannel(context.Background(), ch2, resultErrors)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	// 等待所有的lister生产者和rename消费者结束
+	err = pool.Wait(context.Background())
+	if err != nil {
+		return nil, err
 	}
 
-	for _, key := range l.ListPrefix(srcDir) {
-		ch <- key
-	}
-	close(ch)
-	return nil
+	// 等待append结束返回
+	close(resultErrors)
+	wg.Wait()
+	return renameErrors, nil
 }
 
 // MoveDirectoryTo 目录级别的Move操作
