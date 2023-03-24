@@ -123,7 +123,7 @@ func TestBatchMove(t *testing.T) {
 	// 批量测试
 	var pairs []kodo.KeyPair
 	for _, tc := range testCases {
-		pairs = append(pairs, kodo.KeyPair{Src: tc.key1, Dest: tc.key2})
+		pairs = append(pairs, kodo.KeyPair{SrcKey: tc.key1, DestKey: tc.key2})
 	}
 
 	rets, err := bucket.BatchMove(nil, pairs...)
@@ -194,7 +194,7 @@ func TestBatchCopy(t *testing.T) {
 	// 批量测试
 	var pairs []kodo.KeyPair
 	for _, tc := range testCases {
-		pairs = append(pairs, kodo.KeyPair{Src: tc.key1, Dest: tc.key2})
+		pairs = append(pairs, kodo.KeyPair{SrcKey: tc.key1, DestKey: tc.key2})
 	}
 
 	rets, err := bucket.BatchCopy(nil, pairs...)
