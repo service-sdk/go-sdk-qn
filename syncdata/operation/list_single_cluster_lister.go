@@ -362,7 +362,7 @@ func (l *singleClusterLister) deleteKeys(ctx context.Context, keys []string, isF
 		// 非强制删除且启用回收站功能
 		return l.renameAsDeleteKeys(ctx, keys, l.recycleBin)
 	} else {
-		return l.deleteAsDeleteKeysWithRetries(ctx, keys, 10, 0)
+		return l.deleteAsDeleteKeysWithRetries(ctx, keys, 10)
 	}
 }
 
@@ -400,123 +400,13 @@ func (l *singleClusterLister) renameAsDeleteKeys(ctx context.Context, paths []st
 }
 
 // 带重试逻辑的批量删除
-func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context, paths []string, retries, retried uint) ([]*DeleteKeysError, error) {
-	// 并发数计算
-	concurrency := (len(paths) + l.batchSize - 1) / l.batchSize
-	if concurrency > l.batchConcurrency {
-		concurrency = l.batchConcurrency
-	}
-	var (
-		errors             = make([]*DeleteKeysError, len(paths))
-		failedPath         []string
-		failedPathIndexMap []int
-		failedRsHosts      = make(map[string]struct{})
-		failedRsHostsLock  sync.RWMutex
-		pool               = goroutine_pool.NewGoroutinePool(concurrency)
-	)
-
-	// 分批处理
-	for i := 0; i < len(paths); i += l.batchSize {
-		// 计算本次批量处理的数量
-		size := l.batchSize
-		if size > len(paths)-i {
-			size = len(paths) - i
-		}
-
-		// paths 是这批要删除的文件
-		// index 是这批文件的起始位置
-		func(paths []string, index int) {
-			pool.Go(func(ctx context.Context) error {
-				// 删除这一批文件，如果出错了最多重试两次，返回成功删除的结果
-				res, _ := func() ([]kodo.BatchItemRet, error) {
-					var (
-						err error
-						r   []kodo.BatchItemRet
-					)
-					for i := 0; i < 2; i++ {
-						// 获取一个 rs host
-						failedRsHostsLock.RLock()
-						host := l.nextRsHost(failedRsHosts)
-						failedRsHostsLock.RUnlock()
-
-						// 根据拿到的rs域名构造一个 bucket
-						bucket := l.newBucket(host, "", "")
-						r, err = bucket.BatchDelete(ctx, paths...)
-
-						// 成功退出
-						if err == nil {
-							succeedHostName(host)
-							return r, nil
-						}
-						// 出错了，获取写锁，记录错误的 rs host
-						failedRsHostsLock.Lock()
-						failedRsHosts[host] = struct{}{}
-						failedRsHostsLock.Unlock()
-						failHostName(host)
-
-						elog.Info("batchDelete retry ", i, host, err)
-					}
-					// 重试2次都失败了，返回错误
-					return nil, err
-				}()
-
-				// 批量删除的结果，过滤掉成功的，记录失败的到 errors 中
-				for j, v := range res {
-					if v.Code == 200 {
-						errors[index+j] = nil
-						continue
-					}
-					errors[index+j] = &DeleteKeysError{
-						Name:  paths[j],
-						Error: v.Error,
-						Code:  v.Code,
-					}
-					elog.Warn("delete bad file:", paths[j], "with code:", v.Code)
-				}
-				return nil
-			})
-		}(paths[i:i+size], i)
-	}
-
-	// 等待所有的批量删除任务完成，如果出错了，直接结束返回错误
-	if err := pool.Wait(ctx); err != nil {
-		return nil, err
-	}
-
-	if retries <= 0 {
-		return errors, nil
-	}
-
-	// 如果期望重试的次数大于0，那么尝试一次重试
-	for i, e := range errors {
-		// 对于所有的5xx错误，都记录下来，等待重试
-		if e != nil && e.Code/100 == 5 {
-			failedPathIndexMap = append(failedPathIndexMap, i)
-			failedPath = append(failedPath, e.Name)
-			elog.Warn("redelete bad file:", e.Name, "with code:", e.Code)
-		}
-	}
-
-	// 如果有需要重试的文件，那么进行重试
-	if len(failedPath) > 0 {
-		elog.Warn("redelete ", len(failedPath), " bad files, retried:", retried)
-
-		// 将失败的文件进行重试
-		retriedErrors, err := l.deleteAsDeleteKeysWithRetries(ctx, failedPath, retries-1, retried+1)
-
-		// 如果重试出错了，直接返回错误
-		if err != nil {
-			return errors, err
-		}
-
-		// 如果重试成功了，那么把重试的结果合并到原来的结果中
-		for i, retriedError := range retriedErrors {
-			errors[failedPathIndexMap[i]] = retriedError
-		}
-	}
-
-	// 返回最终的结果
-	return errors, nil
+func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context, paths []string, retries uint) ([]*DeleteKeysError, error) {
+	return newDeleteAsDeleteKeysWithRetries(context.Background(), l, paths, retries,
+		func(bucket kodo.Bucket, paths []string) ([]kodo.BatchItemRet, error) {
+			return bucket.BatchDelete(ctx, paths...)
+		},
+		2, l.batchSize, l.batchConcurrency,
+	).doAndRetryAction()
 }
 
 func (l *singleClusterLister) listPrefixToChannel(ctx context.Context, prefix string, ch chan<- string) error {

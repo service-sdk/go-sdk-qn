@@ -1,6 +1,9 @@
 package test
 
 import (
+	"context"
+	"fmt"
+	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -285,4 +288,33 @@ func TestLister_DeleteDirectory(t *testing.T) {
 func TestLister_ForceDeleteDirectory(t *testing.T) {
 	checkSkipTest(t)
 
+}
+
+func makeLotsFiles(t *testing.T, files uint, batchConcurrency int) (paths []string) {
+	pool := goroutine_pool.NewGoroutinePool(batchConcurrency)
+	for i := uint(0); i < files; i++ {
+		func(id uint) {
+			p := fmt.Sprintf("test%d", id)
+			pool.Go(func(ctx context.Context) (err error) {
+				return uploader.UploadData(nil, p)
+			})
+		}(i)
+	}
+	err := pool.Wait(context.Background())
+	assert.NoError(t, err)
+
+	// 文件列表
+	for i := uint(0); i < files; i++ {
+		paths = append(paths, fmt.Sprintf("test%d", i))
+	}
+	return paths
+}
+
+func TestDeleteLotsFile(t *testing.T) {
+	makeLotsFiles(t, 5000, 500)
+	paths := lister.ListPrefix("")
+	assert.Equal(t, 5000, len(paths))
+	_, err := lister.DeleteKeys(paths)
+	assert.NoError(t, err)
+	assert.Empty(t, lister.ListPrefix(""))
 }
