@@ -304,15 +304,45 @@ func (l *Lister) CopyDirectory(srcDir, destDir string) (copyErrors []CopyKeysErr
 }
 
 // DeleteDirectory 目录级别的Delete操作
-func (l *Lister) DeleteDirectory(dir string) error {
-	// TODO
-	return nil
+func (l *Lister) DeleteDirectory(dir string) (deleteErrors []DeleteKeysError, err error) {
+	return l.deleteDirectory(dir, false)
 }
 
 // ForceDeleteDirectory 目录级别的强制Delete操作
-func (l *Lister) ForceDeleteDirectory(dir string) error {
-	// TODO
-	return nil
+func (l *Lister) ForceDeleteDirectory(dir string) (deleteErrors []DeleteKeysError, err error) {
+	return l.deleteDirectory(dir, true)
+}
+
+// deleteDirectory 目录级别的强制Delete操作
+func (l *Lister) deleteDirectory(dir string, isForce bool) (deleteErrors []DeleteKeysError, err error) {
+	dirKey := makeSureKeyAsDir(dir)
+	pool := goroutine_pool.NewGoroutinePool(1)
+
+	ch1 := make(chan string, 1000)
+	ch2 := make(chan DeleteKeysError, 1000)
+	var wg sync.WaitGroup
+	go func() {
+		defer wg.Done()
+		for e := range ch2 {
+			deleteErrors = append(deleteErrors, e)
+		}
+	}()
+
+	pool.Go(func(ctx context.Context) error {
+		err := l.deleteKeysFromChannel(context.Background(), ch1, isForce, ch2)
+		close(ch2)
+		return err
+	})
+
+	if err := l.listPrefixToChannel(context.Background(), dirKey, ch1); err != nil {
+		return nil, err
+	}
+	close(ch1)
+	if err := pool.Wait(context.Background()); err != nil {
+		return nil, err
+	}
+	wg.Wait()
+	return deleteErrors, nil
 }
 
 func (l *Lister) batchStab(r io.Reader) []*FileStat {

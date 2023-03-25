@@ -156,11 +156,7 @@ func (l *multiClusterLister) rename(fromKey, toKey string) error {
 	return newSingleClusterLister(c).rename(fromKey, toKey)
 }
 
-func (l *multiClusterLister) deleteKeysForConfig(ctx context.Context, config *Config, keys []string, isForce bool) ([]*DeleteKeysError, error) {
-	return newSingleClusterLister(config).deleteKeys(ctx, keys, isForce)
-}
 func (l *multiClusterLister) deleteKeys(ctx context.Context, keys []string, isForce bool) ([]*DeleteKeysError, error) {
-
 	type KeysWithIndex struct {
 		IndexMap []int
 		Keys     []string
@@ -188,7 +184,7 @@ func (l *multiClusterLister) deleteKeys(ctx context.Context, keys []string, isFo
 	for config, keysWithIndex := range clusterPathsMap {
 		func(config *Config, keys []string, indexMap []int) {
 			pool.Go(func(ctx context.Context) error {
-				deleteErrors, err := l.deleteKeysForConfig(ctx, config, keys, isForce)
+				deleteErrors, err := newSingleClusterLister(config).deleteKeys(ctx, keys, isForce)
 				if err != nil {
 					return err
 				}

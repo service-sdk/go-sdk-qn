@@ -471,11 +471,10 @@ func (l *singleClusterLister) listPrefix(ctx context.Context, prefix string) (fi
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		// 从channel读数据
+		defer wg.Done()
 		for c := range ch {
 			files = append(files, c)
 		}
-		wg.Done()
 	}()
 
 	err = l.listPrefixToChannel(ctx, prefix, ch)
@@ -534,11 +533,7 @@ func (l *singleClusterLister) copyKeys(ctx context.Context, input []CopyKeyInput
 }
 
 // 从channel中读取数据并批量复制
-func (l *singleClusterLister) copyKeysFromChannel(
-	ctx context.Context,
-	input <-chan CopyKeyInput,
-	errorsChan chan<- CopyKeysError,
-) error {
+func (l *singleClusterLister) copyKeysFromChannel(ctx context.Context, input <-chan CopyKeyInput, errorsChan chan<- CopyKeysError) error {
 	var batch []CopyKeyInput
 	for in := range input {
 		batch = append(batch, in)
