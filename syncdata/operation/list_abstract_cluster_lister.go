@@ -20,7 +20,7 @@ type RenameKeyInput FromToKey
 
 type MoveKeyInput struct {
 	FromToKey
-	toBucket string
+	ToBucket string
 }
 
 type FromToKeyError struct {
@@ -41,7 +41,7 @@ type MoveKeysError struct {
 type clusterLister interface {
 	listStat(ctx context.Context, keys []string) ([]*FileStat, error)
 	listPrefix(ctx context.Context, prefix string) ([]string, error)
-	listPrefixToChannel(ctx context.Context, prefix string, ch chan<- string) error
+	listPrefixToChannel(ctx context.Context, prefix string, output chan<- string) error
 
 	delete(key string, isForce bool) error
 	copy(fromKey, toKey string) error

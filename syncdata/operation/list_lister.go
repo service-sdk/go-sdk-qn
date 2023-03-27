@@ -240,7 +240,7 @@ func (l *Lister) moveDirectoryTo(ctx context.Context, consumerCount int, srcDir,
 					FromKey: key,
 					ToKey:   destKey,
 				},
-				toBucket: toBucket,
+				ToBucket: toBucket,
 			}
 		}
 		close(moveKeyInputChan)

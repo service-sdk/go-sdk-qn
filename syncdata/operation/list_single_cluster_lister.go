@@ -569,7 +569,7 @@ func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput
 				entries = append(entries, kodo.KeyPairEx{
 					SrcKey:     e.FromKey,
 					DestKey:    e.ToKey,
-					DestBucket: e.toBucket,
+					DestBucket: e.ToBucket,
 				})
 			}
 			return bucket.BatchMove(ctx, entries...)
@@ -586,7 +586,7 @@ func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput
 					ToKey:   input.ToKey,
 					Error:   r.Error,
 				},
-				ToBucket: input.toBucket,
+				ToBucket: input.ToBucket,
 			}
 		},
 		func(err *MoveKeysError) (code int, input MoveKeyInput) {
@@ -595,7 +595,7 @@ func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput
 					FromKey: err.FromKey,
 					ToKey:   err.ToKey,
 				},
-				toBucket: err.ToBucket,
+				ToBucket: err.ToBucket,
 			}
 		},
 	).doAndRetryAction()
@@ -637,7 +637,7 @@ func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyI
 					FromKey: e.FromKey,
 					ToKey:   e.ToKey,
 				},
-				toBucket: l.bucket,
+				ToBucket: l.bucket,
 			})
 		}
 		moveKeysErrors, err := l.moveKeys(ctx, moveKeys)

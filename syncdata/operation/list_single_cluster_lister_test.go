@@ -221,7 +221,7 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 					FromKey: key,
 					ToKey:   "move/" + key,
 				},
-				toBucket: l.bucket,
+				ToBucket: l.bucket,
 			}
 		}
 		close(ch2)
