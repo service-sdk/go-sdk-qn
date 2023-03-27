@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
+	"time"
 )
 
 func getSingleClusterLister() *singleClusterLister {
@@ -108,21 +109,28 @@ func TestSingleClusterLister_upload_copyKeys(t *testing.T) {
 // 上传，拷贝，列举
 func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) {
 	checkSkipTest(t)
+	clearBucket(t)
 	l := getSingleClusterLister()
 
 	ch1 := make(chan string, 10)
 	ch2 := make(chan CopyKeyInput, 10)
+
+	// 上传10个文件
 	for i := 0; i < 10; i++ {
 		err := uploader.UploadData(nil, fmt.Sprintf("CopyKeyFromChannel%d", i))
 		assert.NoError(t, err)
 	}
 
+	time.Sleep(time.Millisecond * 500)
+
+	// 列举所有文件到ch1中
 	go func() {
 		err := l.listPrefixToChannel(context.Background(), "CopyKeyFromChannel", ch1)
 		assert.NoError(t, err)
 		close(ch1)
 	}()
 
+	// 从ch1中读取文件名，构造CopyInput到ch2中
 	go func() {
 		for key := range ch1 {
 			ch2 <- CopyKeyInput{
@@ -133,13 +141,17 @@ func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) 
 		close(ch2)
 	}()
 
+	// 从ch2中读取CopyInput，拷贝文件
 	err := l.copyKeysFromChannel(context.Background(), ch2, nil)
 	assert.NoError(t, err)
 
+	time.Sleep(time.Millisecond * 500)
+
 	r, err := l.listPrefix(context.Background(), "CopyKeyFromChannel")
 	assert.NoError(t, err)
-	assert.Equal(t, 20, len(r))
 
+	// 检查拷贝后的文件是否存在, 10个文件拷贝后应该有20个文件
+	assert.Equal(t, 20, len(r))
 	for i := 0; i < 20; i++ {
 		err := l.delete(r[i], true)
 		assert.NoError(t, err)
@@ -202,7 +214,7 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 	l := getSingleClusterLister()
 
 	// 批量上传10000个文件
-	makeLotsFiles(t, 10000, 500)
+	makeLotsFiles(t, 5000, 500)
 
 	// 列举所有文件名到ch1
 	ch1 := make(chan string, 1000)

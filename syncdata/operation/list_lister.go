@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"sync"
 )
 
 // Lister 列举器
@@ -149,12 +150,14 @@ func (l *Lister) renameDirectory(ctx context.Context, consumerCount int, srcDir,
 
 	// 处理错误
 	resultErrors := make(chan RenameKeysError, 100)
-	pool.Go(func(ctx context.Context) error {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		for e := range resultErrors {
 			renameErrors = append(renameErrors, e)
 		}
-		return nil
-	})
+	}()
 
 	// 列举所有的文件
 	listPrefixChan := make(chan string, 100)
@@ -194,9 +197,10 @@ func (l *Lister) renameDirectory(ctx context.Context, consumerCount int, srcDir,
 	}
 	// 等待所有的rename消费者结束
 	err = pool.Wait(ctx)
-
 	// 通知resultErrors的消费者结束
 	close(resultErrors)
+	// 等待resultErrors的消费者结束
+	wg.Wait()
 
 	if err != nil {
 		return nil, err
@@ -211,12 +215,14 @@ func (l *Lister) moveDirectoryTo(ctx context.Context, consumerCount int, srcDir,
 
 	// 处理错误
 	resultErrors := make(chan MoveKeysError, 100)
-	pool.Go(func(ctx context.Context) error {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		for e := range resultErrors {
 			moveErrors = append(moveErrors, e)
 		}
-		return nil
-	})
+	}()
 
 	// 列举所有的文件
 	listPrefixChan := make(chan string, 100)
@@ -259,9 +265,10 @@ func (l *Lister) moveDirectoryTo(ctx context.Context, consumerCount int, srcDir,
 	}
 	// 等待所有的rename消费者结束
 	err = pool.Wait(ctx)
-
 	// 通知resultErrors的消费者结束
 	close(resultErrors)
+	// 等待resultErrors的消费者结束
+	wg.Wait()
 
 	if err != nil {
 		return nil, err
@@ -276,12 +283,14 @@ func (l *Lister) copyDirectory(ctx context.Context, consumerCount int, srcDir, d
 
 	// 处理错误
 	resultErrors := make(chan CopyKeysError, 100)
-	pool.Go(func(ctx context.Context) error {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		for e := range resultErrors {
 			copyErrors = append(copyErrors, e)
 		}
-		return nil
-	})
+	}()
 
 	// 列举所有的文件
 	listPrefixChan := make(chan string, 100)
@@ -321,9 +330,10 @@ func (l *Lister) copyDirectory(ctx context.Context, consumerCount int, srcDir, d
 	}
 	// 等待所有的消费者结束
 	err = pool.Wait(ctx)
-
 	// 通知resultErrors的消费者结束
 	close(resultErrors)
+	// 等待resultErrors的消费者结束
+	wg.Wait()
 
 	if err != nil {
 		return nil, err
@@ -337,12 +347,14 @@ func (l *Lister) deleteDirectory(ctx context.Context, consumerCount int, dir str
 	pool := goroutine_pool.NewGoroutinePoolWithoutLimit()
 
 	deleteKeyErrorChan := make(chan DeleteKeysError, 1000)
-	pool.Go(func(ctx context.Context) error {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		for e := range deleteKeyErrorChan {
 			deleteErrors = append(deleteErrors, e)
 		}
-		return nil
-	})
+	}()
 
 	keyChan := make(chan string, 1000)
 	// deleter consumer
@@ -359,6 +371,7 @@ func (l *Lister) deleteDirectory(ctx context.Context, consumerCount int, dir str
 	})
 
 	err = pool.Wait(ctx)
+	wg.Wait()
 	if err != nil {
 		return nil, err
 	}

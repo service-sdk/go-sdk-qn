@@ -53,7 +53,7 @@ func (pool *GoroutinePool) Wait(ctx context.Context) error {
 	}
 
 	// worker consumer
-	for i := 0; i < pool.maxGoroutineCount; i++ {
+	for i := 0; i < consumerCount; i++ {
 		group.Go(func() error {
 			for worker := range workersChan {
 				if err := worker(ctx); err != nil {
