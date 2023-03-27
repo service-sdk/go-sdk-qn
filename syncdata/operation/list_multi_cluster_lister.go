@@ -368,21 +368,253 @@ func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyIn
 }
 
 func (l *multiClusterLister) deleteKeysFromChannel(ctx context.Context, keysChan <-chan string, isForce bool, errorsChan chan<- DeleteKeysError) error {
-	//TODO implement me
-	panic("implement me")
+	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+	clusterPathsMap := make(map[*Config][]string)
+
+	type configAndKeys struct {
+		config *Config
+		keys   []string
+	}
+
+	// 将所有的key按照集群配置分组的channel
+	configAndKeysChan := make(chan configAndKeys, 100)
+	go func() {
+		// 每当有新的任务进来, 就将其放入对应的集群中
+		for configAndKeys := range configAndKeysChan {
+			func(config *Config, keys []string) {
+				pool.Go(func(ctx context.Context) error {
+					deleteErrors, err := newSingleClusterLister(config).deleteKeys(ctx, keys, isForce)
+					if err != nil {
+						return err
+					}
+					for _, deleteError := range deleteErrors {
+						if deleteError != nil {
+							errorsChan <- *deleteError
+						}
+					}
+					return nil
+				})
+			}(configAndKeys.config, configAndKeys.keys)
+		}
+	}()
+
+	pool.Go(func(ctx context.Context) error {
+		for key := range keysChan {
+			config, exists := l.config.forKey(key)
+			if !exists {
+				return ErrUndefinedConfig
+			}
+			clusterPathsMap[config] = append(clusterPathsMap[config], key)
+
+			// 当某个集群中的key数量达到100时, 将其放入对应的集群任务中
+			if len(clusterPathsMap[config]) > 100 {
+				configAndKeysChan <- configAndKeys{
+					config: config,
+					keys:   clusterPathsMap[config],
+				}
+				clusterPathsMap[config] = make([]string, 0)
+			}
+		}
+		for config, keys := range clusterPathsMap {
+			if len(keys) > 0 {
+				configAndKeysChan <- configAndKeys{
+					config: config,
+					keys:   keys,
+				}
+			}
+		}
+		close(configAndKeysChan)
+		return nil
+	})
+
+	return pool.Wait(ctx)
 }
 
 func (l *multiClusterLister) copyKeysFromChannel(ctx context.Context, input <-chan CopyKeyInput, errorsChan chan<- CopyKeysError) error {
-	//TODO implement me
-	panic("implement me")
+	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+	clusterPathsMap := make(map[*Config][]CopyKeyInput)
+
+	type configAndKeys struct {
+		config *Config
+		inputs []CopyKeyInput
+	}
+
+	// 将所有的key按照集群配置分组的channel
+	configAndKeysChan := make(chan configAndKeys, 100)
+	go func() {
+		// 每当有新的任务进来, 就将其放入对应的集群中
+		for configAndKeys := range configAndKeysChan {
+			func(config *Config, inputs []CopyKeyInput) {
+				pool.Go(func(ctx context.Context) error {
+					copyErrors, err := newSingleClusterLister(config).copyKeys(ctx, inputs)
+					if err != nil {
+						return err
+					}
+					for _, copyError := range copyErrors {
+						if copyError != nil {
+							errorsChan <- *copyError
+						}
+					}
+					return nil
+				})
+			}(configAndKeys.config, configAndKeys.inputs)
+		}
+	}()
+
+	pool.Go(func(ctx context.Context) error {
+		for input := range input {
+			config, exists := l.config.forKey(input.FromKey)
+			if !exists {
+				return ErrUndefinedConfig
+			}
+			clusterPathsMap[config] = append(clusterPathsMap[config], input)
+
+			// 当某个集群中的key数量达到100时, 将其放入对应的集群任务中
+			if len(clusterPathsMap[config]) > 100 {
+				configAndKeysChan <- configAndKeys{
+					config: config,
+					inputs: clusterPathsMap[config],
+				}
+				clusterPathsMap[config] = make([]CopyKeyInput, 0)
+			}
+		}
+		for config, inputs := range clusterPathsMap {
+			if len(inputs) > 0 {
+				configAndKeysChan <- configAndKeys{
+					config: config,
+					inputs: inputs,
+				}
+			}
+		}
+		close(configAndKeysChan)
+		return nil
+	})
+
+	return pool.Wait(ctx)
 }
 
 func (l *multiClusterLister) moveKeysFromChannel(ctx context.Context, input <-chan MoveKeyInput, errorsChan chan<- MoveKeysError) error {
-	//TODO implement me
-	panic("implement me")
+	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+	clusterPathsMap := make(map[*Config][]MoveKeyInput)
+
+	type configAndKeys struct {
+		config *Config
+		inputs []MoveKeyInput
+	}
+
+	// 将所有的key按照集群配置分组的channel
+	configAndKeysChan := make(chan configAndKeys, 100)
+	go func() {
+		// 每当有新的任务进来, 就将其放入对应的集群中
+		for configAndKeys := range configAndKeysChan {
+			func(config *Config, inputs []MoveKeyInput) {
+				pool.Go(func(ctx context.Context) error {
+					moveErrors, err := newSingleClusterLister(config).moveKeys(ctx, inputs)
+					if err != nil {
+						return err
+					}
+					for _, moveError := range moveErrors {
+						if moveError != nil {
+							errorsChan <- *moveError
+						}
+					}
+					return nil
+				})
+			}(configAndKeys.config, configAndKeys.inputs)
+		}
+	}()
+
+	pool.Go(func(ctx context.Context) error {
+		for input := range input {
+			config, exists := l.config.forKey(input.FromKey)
+			if !exists {
+				return ErrUndefinedConfig
+			}
+			clusterPathsMap[config] = append(clusterPathsMap[config], input)
+
+			// 当某个集群中的key数量达到100时, 将其放入对应的集群任务中
+			if len(clusterPathsMap[config]) > 100 {
+				configAndKeysChan <- configAndKeys{
+					config: config,
+					inputs: clusterPathsMap[config],
+				}
+				clusterPathsMap[config] = make([]MoveKeyInput, 0)
+			}
+		}
+		for config, inputs := range clusterPathsMap {
+			if len(inputs) > 0 {
+				configAndKeysChan <- configAndKeys{
+					config: config,
+					inputs: inputs,
+				}
+			}
+		}
+		close(configAndKeysChan)
+		return nil
+	})
+
+	return pool.Wait(ctx)
 }
 
 func (l *multiClusterLister) renameKeysFromChannel(ctx context.Context, input <-chan RenameKeyInput, errorsChan chan<- RenameKeysError) error {
-	//TODO implement me
-	panic("implement me")
+	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+	clusterPathsMap := make(map[*Config][]RenameKeyInput)
+
+	type configAndKeys struct {
+		config *Config
+		inputs []RenameKeyInput
+	}
+
+	// 将所有的key按照集群配置分组的channel
+	configAndKeysChan := make(chan configAndKeys, 100)
+	go func() {
+		// 每当有新的任务进来, 就将其放入对应的集群中
+		for configAndKeys := range configAndKeysChan {
+			func(config *Config, inputs []RenameKeyInput) {
+				pool.Go(func(ctx context.Context) error {
+					renameErrors, err := newSingleClusterLister(config).renameKeys(ctx, inputs)
+					if err != nil {
+						return err
+					}
+					for _, renameError := range renameErrors {
+						if renameError != nil {
+							errorsChan <- *renameError
+						}
+					}
+					return nil
+				})
+			}(configAndKeys.config, configAndKeys.inputs)
+		}
+	}()
+
+	pool.Go(func(ctx context.Context) error {
+		for input := range input {
+			config, exists := l.config.forKey(input.FromKey)
+			if !exists {
+				return ErrUndefinedConfig
+			}
+			clusterPathsMap[config] = append(clusterPathsMap[config], input)
+
+			// 当某个集群中的key数量达到100时, 将其放入对应的集群任务中
+			if len(clusterPathsMap[config]) > 100 {
+				configAndKeysChan <- configAndKeys{
+					config: config,
+					inputs: clusterPathsMap[config],
+				}
+				clusterPathsMap[config] = make([]RenameKeyInput, 0)
+			}
+		}
+		for config, inputs := range clusterPathsMap {
+			if len(inputs) > 0 {
+				configAndKeysChan <- configAndKeys{
+					config: config,
+					inputs: inputs,
+				}
+			}
+		}
+		close(configAndKeysChan)
+		return nil
+	})
+
+	return pool.Wait(ctx)
 }
