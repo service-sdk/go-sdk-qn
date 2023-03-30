@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMultuClustersConfigDefaultSelectConfigCallbackFunc(t *testing.T) {
+func TestMultiClustersConfig_defaultSelectConfigCallbackFunc(t *testing.T) {
 	mCfg := MultiClustersConfig{
 		configs: map[string]*Config{
 			"/node/1":   {Ak: "ak-1"},

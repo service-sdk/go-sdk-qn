@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -16,11 +15,12 @@ import (
 type MultiClustersConfig struct {
 	configs                    map[string]*Config
 	originalPath               string
-	selectConfigCallback       func(map[string]*Config, string) (*Config, bool)
+	selectConfigCallback       func(configs map[string]*Config, key string) (*Config, bool)
 	selectConfigCallbackRwLock sync.RWMutex
 }
 
-func (config *MultiClustersConfig) SetConfigSelectCallback(f func(map[string]*Config, string) (*Config, bool)) {
+// SetConfigSelectCallback 设置一个配置选取策略回调
+func (config *MultiClustersConfig) SetConfigSelectCallback(f func(configs map[string]*Config, key string) (*Config, bool)) {
 	config.selectConfigCallbackRwLock.Lock()
 	defer config.selectConfigCallbackRwLock.Unlock()
 
@@ -44,36 +44,35 @@ func (config *MultiClustersConfig) forKey(key string) (*Config, bool) {
 
 // 根据key获取对应的配置
 func (config *MultiClustersConfig) selectConfig(key string) (*Config, bool) {
-	if config.selectConfigCallback != nil {
-		config.selectConfigCallbackRwLock.RLock()
-		defer config.selectConfigCallbackRwLock.RUnlock()
-		return config.selectConfigCallback(config.configs, key)
-	} else {
+	// 如果没有设置回调，则使用默认的回调
+	if config.selectConfigCallback == nil {
 		return config.defaultSelectConfigCallbackFunc(key)
 	}
+
+	config.selectConfigCallbackRwLock.RLock()
+	defer config.selectConfigCallbackRwLock.RUnlock()
+
+	return config.selectConfigCallback(config.configs, key)
 }
 
+// 默认的配置选取策略
 func (config *MultiClustersConfig) defaultSelectConfigCallbackFunc(key string) (*Config, bool) {
+	isKeyStartsWithPrefix := func(key, prefix string) bool {
+		if !strings.HasSuffix(key, "/") {
+			key = key + "/"
+		}
+		if !strings.HasSuffix(prefix, "/") {
+			prefix = prefix + "/"
+		}
+		return strings.HasPrefix(key, prefix)
+	}
+
 	for keyPrefix, config := range config.configs {
 		if isKeyStartsWithPrefix(key, keyPrefix) {
 			return config, true
 		}
 	}
 	return nil, false
-}
-
-func isKeyStartsWithPrefix(key, prefix string) bool {
-	keySplited := strings.Split(key, string(filepath.Separator))
-	prefixSplited := strings.Split(prefix, string(filepath.Separator))
-	if len(keySplited) < len(prefixSplited) {
-		return false
-	}
-	for i := 0; i < len(prefixSplited); i++ {
-		if keySplited[i] != prefixSplited[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func (config *MultiClustersConfig) getOriginalPaths() []string {
@@ -108,6 +107,7 @@ func LoadMultiClusterConfigs(file string) (*MultiClustersConfig, error) {
 
 	config := MultiClustersConfig{configs: make(map[string]*Config), originalPath: file}
 	for name, p := range namePathMap {
+		// 依次加载多集群的每个配置文件
 		if configFile, err := Load(p); err != nil {
 			return &config, err
 		} else {
