@@ -6,6 +6,7 @@ import (
 	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestListPrefix(t *testing.T) {
@@ -46,6 +47,8 @@ func TestLister_Rename(t *testing.T) {
 	err = lister.Rename("test1", "test2")
 	defer lister.Delete("test2")
 	assert.NoError(t, err)
+
+	time.Sleep(1 * time.Second)
 
 	// 列举出所有文件
 	result := lister.ListPrefix("")

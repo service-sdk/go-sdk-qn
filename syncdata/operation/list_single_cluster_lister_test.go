@@ -173,9 +173,13 @@ func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.
 	// 列举所有
 	ch := make(chan string, 1000)
 	go func() {
+		elog.Info("listPrefixToChannel start")
+		defer elog.Info("listPrefixToChannel end")
 		err := l.listPrefixToChannel(context.Background(), "", ch)
+
 		assert.NoError(t, err)
 		close(ch)
+
 	}()
 
 	var wg sync.WaitGroup
@@ -183,7 +187,11 @@ func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
+			elog.Info("deleteKeysFromChannel start")
+			defer elog.Info("deleteKeysFromChannel end")
 			err := l.deleteKeysFromChannel(context.Background(), ch, true, nil)
+
 			assert.NoError(t, err)
 		}()
 	}
@@ -218,7 +226,7 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 
 	l := getSingleClusterListerForTest()
 
-	// 批量上传10000个文件
+	// 批量上传5000个文件
 	makeLotsFiles(t, 5000, 500)
 
 	// 列举所有文件名到ch1
@@ -258,7 +266,7 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 
 	r, err := l.listPrefix(context.Background(), "move/")
 	assert.NoError(t, err)
-	assert.Equal(t, 10000, len(r))
+	assert.Equal(t, 5000, len(r))
 
 	// 清理
 	clearBucket(t)
