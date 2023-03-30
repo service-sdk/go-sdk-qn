@@ -366,7 +366,7 @@ func (d *singleClusterDownloader) downloadRawInner(key string, headers http.Head
 	for headerName, headerValue := range headers {
 		req.Header[headerName] = headerValue
 	}
-	req.Header.Set("User-Agent", rpc.DefaultUserAgent)
+	req.Header.Set("User-Agent", rpc.UserAgent)
 	response, err := downloadClient.Do(req)
 	if err != nil {
 		failedIoHosts[host] = struct{}{}
@@ -476,7 +476,7 @@ func (d *singleClusterDownloader) downloadCheckInner(key, host string) (f *FileS
 	}
 
 	req.Header.Set("Range", generateRange(-1, 4))
-	req.Header.Set("User-Agent", rpc.DefaultUserAgent)
+	req.Header.Set("User-Agent", rpc.UserAgent)
 	response, err := downloadClient.Do(req)
 	if err != nil {
 		return &FileStat{

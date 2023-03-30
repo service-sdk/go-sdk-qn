@@ -17,29 +17,17 @@ var errorAppNames = []string{
 }
 
 func TestSetAppName(t *testing.T) {
-	client := &rpc.Client{}
 	for _, appName := range noErrorAppNames {
-		assert.NoError(t, SetAppName(appName, client))
+		assert.NoError(t, SetAppName(appName))
 	}
 
 	for _, appName := range errorAppNames {
-		assert.Error(t, SetAppName(appName, client))
-	}
-}
-
-func TestSetDefaultAppName(t *testing.T) {
-	client := &rpc.Client{}
-	for _, appName := range noErrorAppNames {
-		assert.NoError(t, SetAppName(appName, client))
-	}
-
-	for _, appName := range errorAppNames {
-		assert.Error(t, SetAppName(appName, client))
+		assert.Error(t, SetAppName(appName))
 	}
 
 	appName := "tesT0.-_"
-	assert.NoError(t, SetDefaultAppName(appName))
-	v := rpc.DefaultUserAgent
+	assert.NoError(t, SetAppName(appName))
+	v := rpc.UserAgent
 	assert.True(t, strings.Contains(v, appName))
 	assert.True(t, strings.HasPrefix(v, "QiniuGo/"+version))
 }

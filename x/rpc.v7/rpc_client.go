@@ -17,14 +17,13 @@ import (
 
 var (
 	ErrInvalidRequestURL = errors.New("invalid request url")
-	DefaultUserAgent     = ""
+	UserAgent            = ""
 )
 
 // --------------------------------------------------------------------
 
 type Client struct {
 	*http.Client
-	UserAgent *string
 }
 
 // --------------------------------------------------------------------
@@ -127,12 +126,7 @@ func (r Client) Do(ctx Context, req *http.Request) (resp *http.Response, err err
 	req.Header.Set("X-Reqid", xl.ReqId())
 
 	if _, ok := req.Header["User-Agent"]; !ok {
-		// 优先使用Client.UserAgent
-		if r.UserAgent != nil {
-			req.Header.Set("User-Agent", *r.UserAgent)
-		} else {
-			req.Header.Set("User-Agent", DefaultUserAgent)
-		}
+		req.Header.Set("User-Agent", UserAgent)
 	}
 
 	transport := r.Transport // don't change r.Transport

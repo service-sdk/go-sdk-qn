@@ -196,7 +196,7 @@ func (queryer *Queryer) mustQuery() (c *cache, err error) {
 		if err != nil {
 			continue
 		}
-		req.Header.Set("User-Agent", rpc.DefaultUserAgent)
+		req.Header.Set("User-Agent", rpc.UserAgent)
 		resp, err = queryClient.Do(req)
 		if err != nil {
 			failedUcHosts[ucHost] = struct{}{}

@@ -40,23 +40,14 @@ func uaString(userAppName string) string {
 }
 
 // SetAppName userAppName should be [A-Za-z0-9_\ \-\.]*
-func SetAppName(userAppName string, client *rpc.Client) error {
+func SetAppName(userAppName string) error {
 	if err := checkAppName(userAppName); err != nil {
 		return err
 	}
-	ua := uaString(userAppName)
-	client.UserAgent = &ua
-	return nil
-}
-
-func SetDefaultAppName(userAppName string) error {
-	if err := checkAppName(userAppName); err != nil {
-		return err
-	}
-	rpc.DefaultUserAgent = uaString(userAppName)
+	rpc.UserAgent = uaString(userAppName)
 	return nil
 }
 
 func init() {
-	_ = SetDefaultAppName("")
+	_ = SetAppName("")
 }
