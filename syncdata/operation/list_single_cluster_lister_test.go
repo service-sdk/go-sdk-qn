@@ -10,12 +10,17 @@ import (
 )
 
 func getSingleClusterLister() *singleClusterLister {
-	return newSingleClusterLister(config)
+	return newSingleClusterLister(getConfig1())
+}
+
+func getSingleClusterLister2() *singleClusterLister {
+	return newSingleClusterLister(getConfig2())
 }
 
 // 上传，列举，拷贝，列举，删除，列举
 func TestSingleClusterLister_upload_listPrefix_copy_delete(t *testing.T) {
 	checkSkipTest(t)
+	uploader := NewUploader(getConfig1())
 
 	err := uploader.UploadData(nil, "copy1")
 	assert.NoError(t, err)
@@ -53,6 +58,8 @@ func TestSingleClusterLister_upload_listPrefix_copy_delete(t *testing.T) {
 // 上传，列举，删除
 func TestSingleClusterLister_upload_listPrefixToChannel_delete(t *testing.T) {
 	checkSkipTest(t)
+	uploader := NewUploader(getConfig1())
+
 	l := getSingleClusterLister()
 
 	ch := make(chan string, 10)
@@ -78,6 +85,7 @@ func TestSingleClusterLister_upload_listPrefixToChannel_delete(t *testing.T) {
 func TestSingleClusterLister_upload_copyKeys(t *testing.T) {
 	checkSkipTest(t)
 	l := getSingleClusterLister()
+	uploader := NewUploader(getConfig1())
 
 	err := uploader.UploadData(nil, "copyKeys1")
 	assert.NoError(t, err)
@@ -110,6 +118,7 @@ func TestSingleClusterLister_upload_copyKeys(t *testing.T) {
 func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) {
 	checkSkipTest(t)
 	clearBucket(t)
+	uploader := NewUploader(getConfig1())
 	l := getSingleClusterLister()
 
 	ch1 := make(chan string, 10)

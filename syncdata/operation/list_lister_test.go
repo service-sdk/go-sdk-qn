@@ -10,6 +10,9 @@ import (
 
 func TestListPrefix(t *testing.T) {
 	checkSkipTest(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	result := lister.ListPrefix("")
 	_, err := lister.DeleteKeys(result)
@@ -30,6 +33,9 @@ func TestListPrefix(t *testing.T) {
 
 func TestLister_Rename(t *testing.T) {
 	checkSkipTest(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	// 创建文件 test1
 	err := uploader.UploadData([]byte("test1"), "test1")
@@ -55,6 +61,9 @@ func TestLister_Rename(t *testing.T) {
 
 func TestLister_MoveTo(t *testing.T) {
 	checkSkipTest(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	// 创建文件 test1
 	err := uploader.UploadData([]byte("test1"), "test1")
@@ -62,7 +71,7 @@ func TestLister_MoveTo(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 移动文件 test1 -> test2
-	err = lister.MoveTo("test1", bucketName(), "test2")
+	err = lister.MoveTo("test1", config.Bucket, "test2")
 	defer lister.Delete("test2")
 	assert.NoError(t, err)
 
@@ -79,6 +88,8 @@ func TestLister_MoveTo(t *testing.T) {
 
 func TestLister_Copy(t *testing.T) {
 	checkSkipTest(t)
+	lister := NewLister(getConfig1())
+	uploader := NewUploader(getConfig1())
 
 	// 创建文件 test1
 	err := uploader.UploadData([]byte("test1"), "test1")
@@ -103,6 +114,9 @@ func TestLister_Copy(t *testing.T) {
 
 func TestLister_Delete(t *testing.T) {
 	checkSkipTest(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	// 创建文件 test1
 	err := uploader.UploadData([]byte("test1"), "test1")
@@ -129,6 +143,9 @@ func TestLister_Delete(t *testing.T) {
 
 func TestLister_ForceDelete(t *testing.T) {
 	checkSkipTest(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	// 创建文件 test1
 	err := uploader.UploadData([]byte("test1"), "test1")
@@ -155,6 +172,9 @@ func TestLister_ForceDelete(t *testing.T) {
 
 func TestLister_ListStat(t *testing.T) {
 	checkSkipTest(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	type TestCase struct {
 		name    string
@@ -191,6 +211,9 @@ func TestLister_ListStat(t *testing.T) {
 
 func TestLister_DeleteKeys(t *testing.T) {
 	checkSkipTest(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	type TestCase struct {
 		name    string
@@ -229,6 +252,9 @@ func TestLister_DeleteKeys(t *testing.T) {
 
 func TestLister_ForceDeleteKeys(t *testing.T) {
 	checkSkipTest(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	type TestCase struct {
 		name    string
@@ -269,6 +295,9 @@ func TestLister_ForceDeleteKeys(t *testing.T) {
 func TestLister_RenameDirectory(t *testing.T) {
 	checkSkipTest(t)
 	clearBucket(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	keys := []string{
 		"test11", "test12", "test13",
@@ -298,6 +327,9 @@ func TestLister_MoveDirectoryTo(t *testing.T) {
 func TestLister_CopyDirectory(t *testing.T) {
 	checkSkipTest(t)
 	clearBucket(t)
+	config := getConfig1()
+	lister := NewLister(config)
+	uploader := NewUploader(config)
 
 	keys := []string{
 		"test11", "test12", "test13",
@@ -333,6 +365,9 @@ func TestLister_ForceDeleteDirectory(t *testing.T) {
 }
 
 func makeLotsFiles(t *testing.T, files uint, batchConcurrency int) (paths []string) {
+	config := getConfig1()
+	uploader := NewUploader(config)
+
 	pool := goroutine_pool.NewGoroutinePool(batchConcurrency)
 	for i := uint(0); i < files; i++ {
 		func(id uint) {
@@ -353,7 +388,11 @@ func makeLotsFiles(t *testing.T, files uint, batchConcurrency int) (paths []stri
 }
 
 func TestDeleteLotsFile(t *testing.T) {
+	checkSkipTest(t)
 	makeLotsFiles(t, 5000, 500)
+	config := getConfig1()
+	lister := NewLister(config)
+
 	paths := lister.ListPrefix("")
 	assert.Equal(t, 5000, len(paths))
 	_, err := lister.DeleteKeys(paths)
@@ -362,6 +401,11 @@ func TestDeleteLotsFile(t *testing.T) {
 }
 
 func TestListStatLotsFile(t *testing.T) {
+	checkSkipTest(t)
+	makeLotsFiles(t, 5000, 500)
+	config := getConfig1()
+	lister := NewLister(config)
+
 	paths := makeLotsFiles(t, 5000, 500)
 	defer lister.DeleteKeys(paths)
 	stats := lister.ListStat(paths)

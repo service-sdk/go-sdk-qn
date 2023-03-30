@@ -96,9 +96,9 @@ func MakeBaseUrl(domain, key string) (baseUrl string) {
 
 // ----------------------------------------------------------
 
-// 设置使用这个SDK的应用程序名。userApp 必须满足 [A-Za-z0-9_\ \-\.]*
+// SetAppName 设置使用这个SDK的应用程序名。userApp 必须满足 [A-Za-z0-9_\ \-\.]*
 func SetAppName(userApp string) error {
-	return conf.SetDefaultAppName(userApp)
+	return conf.SetAppName(userApp)
 }
 
 // ----------------------------------------------------------
