@@ -1,7 +1,6 @@
-package test
+package kodo
 
 import (
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 	"log"
 	"os"
 	"strings"
@@ -12,8 +11,8 @@ var (
 	skipTest   = true
 	bucketName string
 	domain     string
-	client     *kodo.Client
-	bucket     *kodo.Bucket
+	client     *Client
+	bucket     *Bucket
 )
 
 func setup() {
@@ -35,7 +34,7 @@ func setup() {
 	if bucketName == "" || domain == "" {
 		log.Fatalln("require QINIU_TEST_BUCKET & QINIU_TEST_DOMAIN")
 	}
-	client = kodo.NewClient(&kodo.Config{
+	client = NewClient(&Config{
 		AccessKey: ak,
 		SecretKey: sk,
 		UpHosts:   strings.Split(os.Getenv("QINIU_TEST_UP_HOSTS"), ","),
@@ -45,7 +44,7 @@ func setup() {
 		IoHost:    os.Getenv("QINIU_TEST_IO_HOST"),
 		Scheme:    "http",
 	})
-	bucket = kodo.NewBucket(client, bucketName)
+	bucket = NewBucket(client, bucketName)
 }
 
 func TestMain(m *testing.M) {

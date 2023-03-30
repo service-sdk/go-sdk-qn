@@ -1,14 +1,13 @@
-package test
+package kodo
 
 import (
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestClient_MakeUpTokenWithExpires(t *testing.T) {
 	checkSkipTest(t)
-	token := client.MakeUpTokenWithExpires(&kodo.PutPolicy{
+	token := client.MakeUpTokenWithExpires(&PutPolicy{
 		Scope: bucketName,
 	}, 3600)
 	assert.NotEmpty(t, token)

@@ -1,8 +1,7 @@
-package test
+package kodo
 
 import (
 	"bytes"
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -121,9 +120,9 @@ func TestBatchMove(t *testing.T) {
 	defer clear()
 
 	// 批量测试
-	var pairs []kodo.KeyPairEx
+	var pairs []KeyPairEx
 	for _, tc := range testCases {
-		pairs = append(pairs, kodo.KeyPairEx{SrcKey: tc.key1, DestKey: tc.key2, DestBucket: bucketName})
+		pairs = append(pairs, KeyPairEx{SrcKey: tc.key1, DestKey: tc.key2, DestBucket: bucketName})
 	}
 
 	rets, err := bucket.BatchMove(nil, pairs...)
@@ -192,9 +191,9 @@ func TestBatchCopy(t *testing.T) {
 	defer clear()
 
 	// 批量测试
-	var pairs []kodo.KeyPair
+	var pairs []KeyPair
 	for _, tc := range testCases {
-		pairs = append(pairs, kodo.KeyPair{SrcKey: tc.key1, DestKey: tc.key2})
+		pairs = append(pairs, KeyPair{SrcKey: tc.key1, DestKey: tc.key2})
 	}
 
 	rets, err := bucket.BatchCopy(nil, pairs...)
@@ -283,11 +282,11 @@ func TestBatch(t *testing.T) {
 	prepareKey(t, key1, nil)
 	defer deleteKey(t, key1)
 
-	var rets []kodo.BatchItemRet
+	var rets []BatchItemRet
 	err := client.Batch(nil, &rets, []string{
-		kodo.URICopy(bucketName, key1, bucketName, key2),
-		kodo.URIDelete(bucketName, key1),
-		kodo.URIMove(bucketName, key2, bucketName, key1),
+		URICopy(bucketName, key1, bucketName, key2),
+		URIDelete(bucketName, key1),
+		URIMove(bucketName, key2, bucketName, key1),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(rets))

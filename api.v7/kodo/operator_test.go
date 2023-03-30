@@ -1,4 +1,4 @@
-package test
+package kodo
 
 import (
 	"bytes"

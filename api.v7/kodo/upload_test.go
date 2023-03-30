@@ -1,8 +1,7 @@
-package test
+package kodo
 
 import (
 	"bytes"
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
@@ -37,7 +36,7 @@ func TestGetPrivateUrl(t *testing.T) {
 	)
 	defer bucket.Delete(nil, key)
 
-	baseUrl := kodo.MakeBaseUrl(domain, key)
+	baseUrl := MakeBaseUrl(domain, key)
 	privateUrl := client.MakePrivateUrl(baseUrl, nil)
 
 	resp, err := http.Get(privateUrl)
