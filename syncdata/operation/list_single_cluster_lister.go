@@ -314,13 +314,14 @@ func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []s
 							Size: v.Data.Fsize,
 							code: v.Code,
 						}
+					} else {
+						stats[index+j] = &FileStat{
+							Name: paths[j],
+							Size: -1,
+							code: v.Code,
+						}
+						elog.Warn("stat bad file:", paths[j], "with code:", v.Code)
 					}
-					stats[index+j] = &FileStat{
-						Name: paths[j],
-						Size: -1,
-						code: v.Code,
-					}
-					elog.Warn("stat bad file:", paths[j], "with code:", v.Code)
 				}
 				return nil
 			})
