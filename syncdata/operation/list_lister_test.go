@@ -297,7 +297,7 @@ func TestLister_ForceDeleteKeys(t *testing.T) {
 
 func TestLister_RenameDirectory(t *testing.T) {
 	checkSkipTest(t)
-	clearBucket(t)
+	clearSingleClusterBucket(t)
 	config := getConfig1()
 	lister := NewLister(config)
 	uploader := NewUploader(config)
@@ -329,7 +329,7 @@ func TestLister_MoveDirectoryTo(t *testing.T) {
 }
 func TestLister_CopyDirectory(t *testing.T) {
 	checkSkipTest(t)
-	clearBucket(t)
+	clearSingleClusterBucket(t)
 	config := getConfig1()
 	lister := NewLister(config)
 	uploader := NewUploader(config)
@@ -358,7 +358,7 @@ func TestLister_CopyDirectory(t *testing.T) {
 
 func TestLister_DeleteDirectory(t *testing.T) {
 	checkSkipTest(t)
-	clearBucket(t)
+	clearSingleClusterBucket(t)
 
 }
 

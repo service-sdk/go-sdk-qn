@@ -73,6 +73,7 @@ func (l *multiClusterLister) groupBy(keys []string) (clusterPathsMap map[*Config
 	return clusterPathsMap, nil
 }
 
+// 并发列举每个
 func (l *multiClusterLister) listStat(ctx context.Context, keys []string) ([]*FileStat, error) {
 	result := make([]*FileStat, len(keys))
 
