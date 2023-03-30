@@ -25,11 +25,6 @@ func newMultiClusterLister(config Configurable, multiClustersConcurrency int) *m
 	}
 }
 
-type valuesWithIndices[V any] struct {
-	IndexMap []int
-	Values   []V
-}
-
 // 根据key判定两个对象是否可以进行集群转移操作
 // 只有当fromKey和toKey都能找到相应配置文件且两个配置文件相同时即同一集群节点才可以进行转移
 func (l *multiClusterLister) canTransfer(fromKey, toKey string) (*Config, error) {
@@ -49,9 +44,14 @@ func (l *multiClusterLister) canTransfer(fromKey, toKey string) (*Config, error)
 	return configOfFromKey, nil
 }
 
-func (l *multiClusterLister) groupBy(keys []string) (clusterPathsMap map[*Config]*valuesWithIndices[string], err error) {
+type keysWithIndices struct {
+	Keys     []string
+	IndexMap []int
+}
+
+func (l *multiClusterLister) groupBy(keys []string) (clusterPathsMap map[*Config]*keysWithIndices, err error) {
 	// 将keys按照集群进行分组
-	clusterPathsMap = make(map[*Config]*valuesWithIndices[string])
+	clusterPathsMap = make(map[*Config]*keysWithIndices)
 	for i, key := range keys {
 		config, exists := l.config.forKey(key)
 		if !exists {
@@ -60,7 +60,7 @@ func (l *multiClusterLister) groupBy(keys []string) (clusterPathsMap map[*Config
 
 		// 不包含则创建
 		if e, contains := clusterPathsMap[config]; !contains {
-			e = &valuesWithIndices[string]{Values: make([]string, 0, 1), IndexMap: make([]int, 0, 1)}
+			e = &keysWithIndices{Keys: make([]string, 0, 1), IndexMap: make([]int, 0, 1)}
 			clusterPathsMap[config] = e
 		}
 
@@ -68,7 +68,7 @@ func (l *multiClusterLister) groupBy(keys []string) (clusterPathsMap map[*Config
 
 		// 将key添加到对应的集群中
 		e.IndexMap = append(e.IndexMap, i)
-		e.Values = append(e.Values, key)
+		e.Keys = append(e.Keys, key)
 	}
 	return clusterPathsMap, nil
 }
@@ -94,7 +94,7 @@ func (l *multiClusterLister) listStat(ctx context.Context, keys []string) ([]*Fi
 				}
 				return nil
 			})
-		}(config, keysWithIndex.Values, keysWithIndex.IndexMap)
+		}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
 	}
 	err = pool.Wait(ctx)
 	return result, err
@@ -191,7 +191,7 @@ func (l *multiClusterLister) deleteKeys(ctx context.Context, keys []string, isFo
 				}
 				return nil
 			})
-		}(config, keysWithIndex.Values, keysWithIndex.IndexMap)
+		}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
 	}
 	err = pool.Wait(ctx)
 	return result, err
@@ -200,7 +200,12 @@ func (l *multiClusterLister) deleteKeys(ctx context.Context, keys []string, isFo
 func (l *multiClusterLister) copyKeys(ctx context.Context, inputs []CopyKeyInput) ([]*CopyKeysError, error) {
 	result := make([]*CopyKeysError, len(inputs))
 
-	clusterPathsMap := make(map[*Config]*valuesWithIndices[CopyKeyInput])
+	type copyKeyInputsWithIndices struct {
+		Inputs   []CopyKeyInput
+		IndexMap []int
+	}
+
+	clusterPathsMap := make(map[*Config]*copyKeyInputsWithIndices)
 
 	// 将所有的canTransfer不满足的key提前赋值
 	for i, input := range inputs {
@@ -218,8 +223,8 @@ func (l *multiClusterLister) copyKeys(ctx context.Context, inputs []CopyKeyInput
 			}
 			// 都是canTransfer的, 不包含则创建
 			if e, contains := clusterPathsMap[config]; !contains {
-				e = &valuesWithIndices[CopyKeyInput]{
-					Values:   make([]CopyKeyInput, 0, 1),
+				e = &copyKeyInputsWithIndices{
+					Inputs:   make([]CopyKeyInput, 0, 1),
 					IndexMap: make([]int, 0, 1),
 				}
 				clusterPathsMap[config] = e
@@ -229,7 +234,7 @@ func (l *multiClusterLister) copyKeys(ctx context.Context, inputs []CopyKeyInput
 
 			// 将key添加到对应的集群中
 			e.IndexMap = append(e.IndexMap, i)
-			e.Values = append(e.Values, input)
+			e.Inputs = append(e.Inputs, input)
 		}
 	}
 
@@ -246,7 +251,7 @@ func (l *multiClusterLister) copyKeys(ctx context.Context, inputs []CopyKeyInput
 				}
 				return nil
 			})
-		}(config, keysWithIndex.Values, keysWithIndex.IndexMap)
+		}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
 	}
 
 	err := pool.Wait(ctx)
@@ -256,7 +261,12 @@ func (l *multiClusterLister) copyKeys(ctx context.Context, inputs []CopyKeyInput
 func (l *multiClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error) {
 	result := make([]*MoveKeysError, len(input))
 
-	clusterPathsMap := make(map[*Config]*valuesWithIndices[MoveKeyInput])
+	type moveKeyInputsWithIndices struct {
+		Inputs   []MoveKeyInput
+		IndexMap []int
+	}
+
+	clusterPathsMap := make(map[*Config]*moveKeyInputsWithIndices)
 
 	// 将所有的canTransfer不满足的key提前赋值
 	for i, input := range input {
@@ -277,8 +287,8 @@ func (l *multiClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput)
 			}
 			// 都是canTransfer的, 不包含则创建
 			if e, contains := clusterPathsMap[config]; !contains {
-				e = &valuesWithIndices[MoveKeyInput]{
-					Values:   make([]MoveKeyInput, 0, 1),
+				e = &moveKeyInputsWithIndices{
+					Inputs:   make([]MoveKeyInput, 0, 1),
 					IndexMap: make([]int, 0, 1),
 				}
 				clusterPathsMap[config] = e
@@ -288,7 +298,7 @@ func (l *multiClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput)
 
 			// 将key添加到对应的集群中
 			e.IndexMap = append(e.IndexMap, i)
-			e.Values = append(e.Values, input)
+			e.Inputs = append(e.Inputs, input)
 		}
 	}
 
@@ -305,7 +315,7 @@ func (l *multiClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput)
 				}
 				return nil
 			})
-		}(config, keysWithIndex.Values, keysWithIndex.IndexMap)
+		}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
 	}
 
 	err := pool.Wait(ctx)
@@ -315,7 +325,12 @@ func (l *multiClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput)
 func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
 	result := make([]*RenameKeysError, len(input))
 
-	clusterPathsMap := make(map[*Config]*valuesWithIndices[RenameKeyInput])
+	type renameKeyInputsWithIndices struct {
+		Inputs   []RenameKeyInput
+		IndexMap []int
+	}
+
+	clusterPathsMap := make(map[*Config]*renameKeyInputsWithIndices)
 
 	// 将所有的canTransfer不满足的key提前赋值
 	for i, input := range input {
@@ -333,8 +348,8 @@ func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyIn
 			}
 			// 都是canTransfer的, 不包含则创建
 			if e, contains := clusterPathsMap[config]; !contains {
-				e = &valuesWithIndices[RenameKeyInput]{
-					Values:   make([]RenameKeyInput, 0, 1),
+				e = &renameKeyInputsWithIndices{
+					Inputs:   make([]RenameKeyInput, 0, 1),
 					IndexMap: make([]int, 0, 1),
 				}
 				clusterPathsMap[config] = e
@@ -344,7 +359,7 @@ func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyIn
 
 			// 将key添加到对应的集群中
 			e.IndexMap = append(e.IndexMap, i)
-			e.Values = append(e.Values, input)
+			e.Inputs = append(e.Inputs, input)
 		}
 	}
 
@@ -361,7 +376,7 @@ func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyIn
 				}
 				return nil
 			})
-		}(config, keysWithIndex.Values, keysWithIndex.IndexMap)
+		}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
 	}
 
 	err := pool.Wait(ctx)

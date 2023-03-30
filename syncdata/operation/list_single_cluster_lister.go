@@ -245,27 +245,127 @@ func (l *singleClusterLister) delete(key string, isForce bool) error {
 }
 
 func (l *singleClusterLister) listStat(ctx context.Context, paths []string) ([]*FileStat, error) {
-	return l.listStatWithRetries(ctx, paths, 10)
+	return l.listStatWithRetries(ctx, paths, 10, 0)
 }
 
-func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []string, retries uint) ([]*FileStat, error) {
-	return newBatchKeysWithRetries(
-		/*context*/ ctx, l, paths, retries,
-		"stat",
-		/*action*/ func(bucket kodo.Bucket, paths []string) ([]kodo.BatchStatItemRet, error) {
-			return bucket.BatchStat(ctx, paths...)
-		},
-		2, l.batchSize, l.batchConcurrency,
-		/*resultBuilder*/ func(path string, r kodo.BatchStatItemRet) *FileStat {
-			if r.Code != 200 {
-				return &FileStat{Name: path, code: r.Code, Size: -1}
-			}
-			return &FileStat{Name: path, Size: r.Data.Fsize, code: r.Code}
-		},
-		/*resultParser*/ func(err *FileStat) (code int, path string) {
-			return err.code, err.Name
-		},
-	).doAndRetryAction()
+func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []string, retries, retried uint) ([]*FileStat, error) {
+	// 并发数计算
+	concurrency := (len(paths) + l.batchSize - 1) / l.batchSize
+	if concurrency > l.batchConcurrency {
+		concurrency = l.batchConcurrency
+	}
+	var (
+		stats              = make([]*FileStat, len(paths))
+		failedPath         []string
+		failedPathIndexMap []int
+		failedRsHosts      = make(map[string]struct{})
+		failedRsHostsLock  sync.RWMutex
+		pool               = goroutine_pool.NewGoroutinePool(concurrency)
+	)
+
+	// 分批处理
+	for i := 0; i < len(paths); i += l.batchSize {
+		// 计算本次批量处理的数量
+		size := l.batchSize
+		if size > len(paths)-i {
+			size = len(paths) - i
+		}
+
+		// paths 是这批要删除的文件
+		// index 是这批文件的起始位置
+		func(paths []string, index int) {
+			pool.Go(func(ctx context.Context) error {
+				// 删除这一批文件，如果出错了最多重试两次，返回成功删除的结果
+				res, _ := func() ([]kodo.BatchStatItemRet, error) {
+					var err error
+					var r []kodo.BatchStatItemRet
+					for i := 0; i < 2; i++ {
+						// 获取一个 rs host
+						failedRsHostsLock.RLock()
+						host := l.nextRsHost(failedRsHosts)
+						failedRsHostsLock.RUnlock()
+
+						// 根据拿到的rs域名构造一个 bucket
+						bucket := l.newBucket(host, "", "")
+						r, err = bucket.BatchStat(ctx, paths...)
+
+						// 成功退出
+						if err == nil {
+							succeedHostName(host)
+							return r, nil
+						}
+						// 出错了，获取写锁，记录错误的 rs host
+						failedRsHostsLock.Lock()
+						failedRsHosts[host] = struct{}{}
+						failedRsHostsLock.Unlock()
+						failHostName(host)
+
+						elog.Info("batchDelete retry ", i, host, err)
+					}
+					// 重试2次都失败了，返回错误
+					return nil, err
+				}()
+
+				// 批量删除的结果，过滤掉成功的，记录失败的到 stats 中
+				for j, v := range res {
+					if v.Code == 200 {
+						stats[index+j] = &FileStat{
+							Name: paths[j],
+							Size: v.Data.Fsize,
+							code: v.Code,
+						}
+					}
+					stats[index+j] = &FileStat{
+						Name: paths[j],
+						Size: -1,
+						code: v.Code,
+					}
+					elog.Warn("stat bad file:", paths[j], "with code:", v.Code)
+				}
+				return nil
+			})
+		}(paths[i:i+size], i)
+	}
+
+	// 等待所有的批量删除任务完成，如果出错了，直接结束返回错误
+	if err := pool.Wait(ctx); err != nil {
+		return nil, err
+	}
+
+	if retries <= 0 {
+		return stats, nil
+	}
+
+	// 如果期望重试的次数大于0，那么尝试一次重试
+	for i, e := range stats {
+		// 对于所有的5xx错误，都记录下来，等待重试
+		if e != nil && e.code/100 == 5 {
+			failedPathIndexMap = append(failedPathIndexMap, i)
+			failedPath = append(failedPath, e.Name)
+			elog.Warn("restat bad file:", e.Name, "with code:", e.code)
+		}
+	}
+
+	// 如果有需要重试的文件，那么进行重试
+	if len(failedPath) > 0 {
+		elog.Warn("redelete ", len(failedPath), " bad files, retried:", retried)
+
+		// 将失败的文件进行重试
+		retriedErrors, err := l.listStatWithRetries(ctx, failedPath, retries-1, retried+1)
+
+		// 如果重试出错了，直接返回错误
+		if err != nil {
+			return stats, err
+		}
+
+		// 如果重试成功了，那么把重试的结果合并到原来的结果中
+		for i, retriedError := range retriedErrors {
+			stats[failedPathIndexMap[i]] = retriedError
+		}
+	}
+
+	// 返回最终的结果
+	return stats, nil
 }
 
 func (l *singleClusterLister) deleteKeysFromChannel(
@@ -333,7 +433,7 @@ func (l *singleClusterLister) deleteAsDeleteKeysFromChannelWithRetries(
 
 	// doOneBatch 用于执行一次批量删除操作
 	doOneBatch := func() error {
-		errors, err := l.deleteAsDeleteKeysWithRetries(ctx, batchKeys, retries)
+		errors, err := l.deleteAsDeleteKeysWithRetries(ctx, batchKeys, retries, 0)
 		if err != nil {
 			return err
 		}
@@ -368,7 +468,7 @@ func (l *singleClusterLister) deleteKeys(ctx context.Context, keys []string, isF
 		// 非强制删除且启用回收站功能
 		return l.renameAsDeleteKeys(ctx, keys, l.recycleBin)
 	} else {
-		return l.deleteAsDeleteKeysWithRetries(ctx, keys, 10)
+		return l.deleteAsDeleteKeysWithRetries(ctx, keys, 10, 0)
 	}
 }
 
@@ -406,24 +506,121 @@ func (l *singleClusterLister) renameAsDeleteKeys(ctx context.Context, paths []st
 }
 
 // 带重试逻辑的批量删除
-func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context, paths []string, retries uint) ([]*DeleteKeysError, error) {
-	return newBatchKeysWithRetries(
-		/*context*/ ctx, l, paths, retries,
-		"delete",
-		/*action*/ func(bucket kodo.Bucket, paths []string) ([]kodo.BatchItemRet, error) {
-			return bucket.BatchDelete(ctx, paths...)
-		},
-		2, l.batchSize, l.batchConcurrency,
-		func(path string, r kodo.BatchItemRet) *DeleteKeysError {
-			if code := r.Code; code != 200 {
-				return &DeleteKeysError{Code: r.Code, Name: path, Error: r.Error}
-			}
-			return nil
-		},
-		func(err *DeleteKeysError) (code int, path string) {
-			return err.Code, err.Name
-		},
-	).doAndRetryAction()
+func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context, paths []string, retries, retried uint) ([]*DeleteKeysError, error) {
+	// 并发数计算
+	concurrency := (len(paths) + l.batchSize - 1) / l.batchSize
+	if concurrency > l.batchConcurrency {
+		concurrency = l.batchConcurrency
+	}
+	var (
+		errors             = make([]*DeleteKeysError, len(paths))
+		failedPath         []string
+		failedPathIndexMap []int
+		failedRsHosts      = make(map[string]struct{})
+		failedRsHostsLock  sync.RWMutex
+		pool               = goroutine_pool.NewGoroutinePool(concurrency)
+	)
+
+	// 分批处理
+	for i := 0; i < len(paths); i += l.batchSize {
+		// 计算本次批量处理的数量
+		size := l.batchSize
+		if size > len(paths)-i {
+			size = len(paths) - i
+		}
+
+		// paths 是这批要删除的文件
+		// index 是这批文件的起始位置
+		func(paths []string, index int) {
+			pool.Go(func(ctx context.Context) error {
+				// 删除这一批文件，如果出错了最多重试两次，返回成功删除的结果
+				res, _ := func() ([]kodo.BatchItemRet, error) {
+					var err error
+					var r []kodo.BatchItemRet
+					for i := 0; i < 2; i++ {
+						// 获取一个 rs host
+						failedRsHostsLock.RLock()
+						host := l.nextRsHost(failedRsHosts)
+						failedRsHostsLock.RUnlock()
+
+						// 根据拿到的rs域名构造一个 bucket
+						bucket := l.newBucket(host, "", "")
+						r, err = bucket.BatchDelete(ctx, paths...)
+
+						// 成功退出
+						if err == nil {
+							succeedHostName(host)
+							return r, nil
+						}
+						// 出错了，获取写锁，记录错误的 rs host
+						failedRsHostsLock.Lock()
+						failedRsHosts[host] = struct{}{}
+						failedRsHostsLock.Unlock()
+						failHostName(host)
+
+						elog.Info("batchDelete retry ", i, host, err)
+					}
+					// 重试2次都失败了，返回错误
+					return nil, err
+				}()
+
+				// 批量删除的结果，过滤掉成功的，记录失败的到 errors 中
+				for j, v := range res {
+					if v.Code == 200 {
+						errors[index+j] = nil
+						continue
+					}
+					errors[index+j] = &DeleteKeysError{
+						Name:  paths[j],
+						Error: v.Error,
+						Code:  v.Code,
+					}
+					elog.Warn("delete bad file:", paths[j], "with code:", v.Code)
+				}
+				return nil
+			})
+		}(paths[i:i+size], i)
+	}
+
+	// 等待所有的批量删除任务完成，如果出错了，直接结束返回错误
+	if err := pool.Wait(ctx); err != nil {
+		return nil, err
+	}
+
+	if retries <= 0 {
+		return errors, nil
+	}
+
+	// 如果期望重试的次数大于0，那么尝试一次重试
+	for i, e := range errors {
+		// 对于所有的5xx错误，都记录下来，等待重试
+		if e != nil && e.Code/100 == 5 {
+			failedPathIndexMap = append(failedPathIndexMap, i)
+			failedPath = append(failedPath, e.Name)
+			elog.Warn("redelete bad file:", e.Name, "with code:", e.Code)
+		}
+	}
+
+	// 如果有需要重试的文件，那么进行重试
+	if len(failedPath) > 0 {
+		elog.Warn("redelete ", len(failedPath), " bad files, retried:", retried)
+
+		// 将失败的文件进行重试
+		retriedErrors, err := l.deleteAsDeleteKeysWithRetries(ctx, failedPath, retries-1, retried+1)
+
+		// 如果重试出错了，直接返回错误
+		if err != nil {
+			return errors, err
+		}
+
+		// 如果重试成功了，那么把重试的结果合并到原来的结果中
+		for i, retriedError := range retriedErrors {
+			errors[failedPathIndexMap[i]] = retriedError
+		}
+	}
+
+	// 返回最终的结果
+	return errors, nil
 }
 
 // 列举指定前缀的文件到channel中
@@ -500,36 +697,138 @@ func (l *singleClusterLister) newBucket(host, rsfHost, apiHost string) kodo.Buck
 	return *kodo.NewBucket(client, l.bucket)
 }
 
-func (l *singleClusterLister) copyKeys(ctx context.Context, input []CopyKeyInput) ([]*CopyKeysError, error) {
-	return newBatchKeysWithRetries(
-		/*context*/ ctx, l, input, 10,
-		"copy",
-		/*action*/ func(bucket kodo.Bucket, input []CopyKeyInput) ([]kodo.BatchItemRet, error) {
-			var entries []kodo.KeyPair
-			for _, v := range input {
-				entries = append(entries, kodo.KeyPair{SrcKey: v.FromKey, DestKey: v.ToKey})
-			}
-			return bucket.BatchCopy(ctx, entries...)
-		},
-		2, l.batchSize, l.batchConcurrency,
-		func(fromToKey CopyKeyInput, r kodo.BatchItemRet) *CopyKeysError {
-			if code := r.Code; code != 200 {
-				return &CopyKeysError{
-					Code:    r.Code,
-					FromKey: fromToKey.FromKey,
-					ToKey:   fromToKey.ToKey,
-					Error:   r.Error,
+func (l *singleClusterLister) copyKeysWithRetries(ctx context.Context, input []CopyKeyInput, retries, retried uint) ([]*CopyKeysError, error) {
+	num := len(input)
+	// 并发数计算
+	concurrency := (num + l.batchSize - 1) / l.batchSize
+	if concurrency > l.batchConcurrency {
+		concurrency = l.batchConcurrency
+	}
+	var (
+		errors              = make([]*CopyKeysError, num)
+		failedInput         []CopyKeyInput
+		failedInputIndexMap []int
+		failedRsHosts       = make(map[string]struct{})
+		failedRsHostsLock   sync.RWMutex
+		pool                = goroutine_pool.NewGoroutinePool(concurrency)
+	)
+
+	// 分批处理
+	for i := 0; i < num; i += l.batchSize {
+		// 计算本次批量处理的数量
+		size := l.batchSize
+		if size > num-i {
+			size = num - i
+		}
+
+		// paths 是这批要删除的文件
+		// index 是这批文件的起始位置
+		func(paths []CopyKeyInput, index int) {
+			pool.Go(func(ctx context.Context) error {
+				// 删除这一批文件，如果出错了最多重试两次，返回成功删除的结果
+				res, _ := func() ([]kodo.BatchItemRet, error) {
+					var err error
+					var r []kodo.BatchItemRet
+					for i := 0; i < 2; i++ {
+						// 获取一个 rs host
+						failedRsHostsLock.RLock()
+						host := l.nextRsHost(failedRsHosts)
+						failedRsHostsLock.RUnlock()
+
+						// 根据拿到的rs域名构造一个 bucket
+						bucket := l.newBucket(host, "", "")
+
+						var pairs []kodo.KeyPair
+						for _, v := range paths {
+							pairs = append(pairs, kodo.KeyPair{
+								SrcKey:  v.FromKey,
+								DestKey: v.ToKey,
+							})
+						}
+						r, err = bucket.BatchCopy(ctx, pairs...)
+
+						// 成功退出
+						if err == nil {
+							succeedHostName(host)
+							return r, nil
+						}
+						// 出错了，获取写锁，记录错误的 rs host
+						failedRsHostsLock.Lock()
+						failedRsHosts[host] = struct{}{}
+						failedRsHostsLock.Unlock()
+						failHostName(host)
+
+						elog.Info("batchDelete retry ", i, host, err)
+					}
+					// 重试2次都失败了，返回错误
+					return nil, err
+				}()
+
+				// 批量删除的结果，过滤掉成功的，记录失败的到 errors 中
+				for j, v := range res {
+					if v.Code == 200 {
+						errors[index+j] = nil
+						continue
+					}
+					errors[index+j] = &CopyKeysError{
+						Error:   v.Error,
+						Code:    v.Code,
+						FromKey: paths[j].FromKey,
+						ToKey:   paths[j].ToKey,
+					}
+					elog.Warn("delete bad file:", paths[j], "with code:", v.Code)
 				}
-			}
-			return nil
-		},
-		func(err *CopyKeysError) (code int, fromToKey CopyKeyInput) {
-			return err.Code, CopyKeyInput{
-				FromKey: err.FromKey,
-				ToKey:   err.ToKey,
-			}
-		},
-	).doAndRetryAction()
+				return nil
+			})
+		}(input[i:i+size], i)
+	}
+
+	// 等待所有的批量删除任务完成，如果出错了，直接结束返回错误
+	if err := pool.Wait(ctx); err != nil {
+		return nil, err
+	}
+
+	if retries <= 0 {
+		return errors, nil
+	}
+
+	// 如果期望重试的次数大于0，那么尝试一次重试
+	for i, e := range errors {
+		// 对于所有的5xx错误，都记录下来，等待重试
+		if e != nil && e.Code/100 == 5 {
+			failedInputIndexMap = append(failedInputIndexMap, i)
+			failedInput = append(failedInput, CopyKeyInput{
+				FromKey: e.FromKey,
+				ToKey:   e.ToKey,
+			})
+			elog.Warn("recopy bad file:", e.FromKey, " -> ", e.ToKey, " with code:", e.Code)
+		}
+	}
+
+	// 如果有需要重试的文件，那么进行重试
+	if len(failedInput) > 0 {
+		elog.Warn("redelete ", len(failedInput), " bad files, retried:", retried)
+
+		// 将失败的文件进行重试
+		retriedErrors, err := l.copyKeysWithRetries(ctx, failedInput, retries-1, retried+1)
+
+		// 如果重试出错了，直接返回错误
+		if err != nil {
+			return errors, err
+		}
+
+		// 如果重试成功了，那么把重试的结果合并到原来的结果中
+		for i, retriedError := range retriedErrors {
+			errors[failedInputIndexMap[i]] = retriedError
+		}
+	}
+
+	// 返回最终的结果
+	return errors, nil
+}
+
+func (l *singleClusterLister) copyKeys(ctx context.Context, input []CopyKeyInput) ([]*CopyKeysError, error) {
+	return l.copyKeysWithRetries(ctx, input, 10, 0)
 }
 
 // 从channel中读取数据并批量复制
@@ -560,45 +859,140 @@ func (l *singleClusterLister) copyKeysFromChannel(ctx context.Context, input <-c
 }
 
 func (l *singleClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error) {
-	return newBatchKeysWithRetries(
-		/*context*/ ctx, l, input, 10,
-		"move",
-		/*action*/ func(bucket kodo.Bucket, fromToKeys []MoveKeyInput) ([]kodo.BatchItemRet, error) {
-			var entries []kodo.KeyPairEx
-			for _, e := range fromToKeys {
-				entries = append(entries, kodo.KeyPairEx{
-					SrcKey:     e.FromKey,
-					DestKey:    e.ToKey,
-					DestBucket: e.ToBucket,
-				})
-			}
-			return bucket.BatchMove(ctx, entries...)
-		},
-		2, l.batchSize, l.batchConcurrency,
-		func(input MoveKeyInput, r kodo.BatchItemRet) *MoveKeysError {
-			if code := r.Code; code == 200 {
+	return l.moveKeysWithRetries(ctx, input, 10, 0)
+}
+func (l *singleClusterLister) moveKeysWithRetries(ctx context.Context, input []MoveKeyInput, retries, retried uint) ([]*MoveKeysError, error) {
+	num := len(input)
+	// 并发数计算
+	concurrency := (num + l.batchSize - 1) / l.batchSize
+	if concurrency > l.batchConcurrency {
+		concurrency = l.batchConcurrency
+	}
+	var (
+		errors              = make([]*MoveKeysError, num)
+		failedInput         []MoveKeyInput
+		failedInputIndexMap []int
+		failedRsHosts       = make(map[string]struct{})
+		failedRsHostsLock   sync.RWMutex
+		pool                = goroutine_pool.NewGoroutinePool(concurrency)
+	)
+
+	// 分批处理
+	for i := 0; i < num; i += l.batchSize {
+		// 计算本次批量处理的数量
+		size := l.batchSize
+		if size > num-i {
+			size = num - i
+		}
+
+		func(paths []MoveKeyInput, index int) {
+			pool.Go(func(ctx context.Context) error {
+				// 删除这一批文件，如果出错了最多重试两次，返回成功删除的结果
+				res, _ := func() ([]kodo.BatchItemRet, error) {
+					var err error
+					var r []kodo.BatchItemRet
+					for i := 0; i < 2; i++ {
+						// 获取一个 rs host
+						failedRsHostsLock.RLock()
+						host := l.nextRsHost(failedRsHosts)
+						failedRsHostsLock.RUnlock()
+
+						// 根据拿到的rs域名构造一个 bucket
+						bucket := l.newBucket(host, "", "")
+
+						var pairs []kodo.KeyPairEx
+						for _, v := range paths {
+							pairs = append(pairs, kodo.KeyPairEx{
+								SrcKey:     v.FromKey,
+								DestKey:    v.ToKey,
+								DestBucket: v.ToBucket,
+							})
+						}
+						r, err = bucket.BatchMove(ctx, pairs...)
+
+						// 成功退出
+						if err == nil {
+							succeedHostName(host)
+							return r, nil
+						}
+						// 出错了，获取写锁，记录错误的 rs host
+						failedRsHostsLock.Lock()
+						failedRsHosts[host] = struct{}{}
+						failedRsHostsLock.Unlock()
+						failHostName(host)
+
+						elog.Info("batchMove retry ", i, host, err)
+					}
+					// 重试2次都失败了，返回错误
+					return nil, err
+				}()
+
+				for j, v := range res {
+					if v.Code == 200 {
+						errors[index+j] = nil
+						continue
+					}
+					errors[index+j] = &MoveKeysError{
+						FromToKeyError: FromToKeyError{
+							Error:   v.Error,
+							Code:    v.Code,
+							FromKey: paths[j].FromKey,
+							ToKey:   paths[j].ToKey,
+						},
+						ToBucket: paths[j].ToBucket,
+					}
+					elog.Warn("delete bad file:", paths[j], "with code:", v.Code)
+				}
 				return nil
-			}
-			return &MoveKeysError{
-				FromToKeyError: FromToKeyError{
-					Code:    r.Code,
-					FromKey: input.FromKey,
-					ToKey:   input.ToKey,
-					Error:   r.Error,
-				},
-				ToBucket: input.ToBucket,
-			}
-		},
-		func(err *MoveKeysError) (code int, input MoveKeyInput) {
-			return err.Code, MoveKeyInput{
+			})
+		}(input[i:i+size], i)
+	}
+
+	// 等待所有的批量删除任务完成，如果出错了，直接结束返回错误
+	if err := pool.Wait(ctx); err != nil {
+		return nil, err
+	}
+
+	if retries <= 0 {
+		return errors, nil
+	}
+
+	// 如果期望重试的次数大于0，那么尝试一次重试
+	for i, e := range errors {
+		// 对于所有的5xx错误，都记录下来，等待重试
+		if e != nil && e.Code/100 == 5 {
+			failedInputIndexMap = append(failedInputIndexMap, i)
+			failedInput = append(failedInput, MoveKeyInput{
 				FromToKey: FromToKey{
-					FromKey: err.FromKey,
-					ToKey:   err.ToKey,
+					FromKey: e.FromKey,
+					ToKey:   e.ToKey,
 				},
-				ToBucket: err.ToBucket,
-			}
-		},
-	).doAndRetryAction()
+				ToBucket: e.ToBucket,
+			})
+			elog.Warn("re move bad file:", e.FromKey, " -> ", e.ToKey, " toBucket: ", e.ToBucket, " with code:", e.Code)
+		}
+	}
+
+	// 如果有需要重试的文件，那么进行重试
+	if len(failedInput) > 0 {
+		elog.Warn("re move ", len(failedInput), " bad files, retried:", retried)
+
+		// 将失败的文件进行重试
+		retriedErrors, err := l.moveKeysWithRetries(ctx, failedInput, retries-1, retried+1)
+
+		// 如果重试出错了，直接返回错误
+		if err != nil {
+			return errors, err
+		}
+
+		// 如果重试成功了，那么把重试的结果合并到原来的结果中
+		for i, retriedError := range retriedErrors {
+			errors[failedInputIndexMap[i]] = retriedError
+		}
+	}
+
+	// 返回最终的结果
+	return errors, nil
 }
 
 func (l *singleClusterLister) moveKeysFromChannel(ctx context.Context, input <-chan MoveKeyInput, errorsChan chan<- MoveKeysError) error {
@@ -625,6 +1019,133 @@ func (l *singleClusterLister) moveKeysFromChannel(ctx context.Context, input <-c
 		}
 	}
 	return nil
+}
+
+func (l *singleClusterLister) renameKeysWithRetries(ctx context.Context, input []RenameKeyInput, retries, retried uint) ([]*RenameKeysError, error) {
+	num := len(input)
+	// 并发数计算
+	concurrency := (num + l.batchSize - 1) / l.batchSize
+	if concurrency > l.batchConcurrency {
+		concurrency = l.batchConcurrency
+	}
+	var (
+		errors              = make([]*RenameKeysError, num)
+		failedInput         []RenameKeyInput
+		failedInputIndexMap []int
+		failedRsHosts       = make(map[string]struct{})
+		failedRsHostsLock   sync.RWMutex
+		pool                = goroutine_pool.NewGoroutinePool(concurrency)
+	)
+
+	// 分批处理
+	for i := 0; i < num; i += l.batchSize {
+		// 计算本次批量处理的数量
+		size := l.batchSize
+		if size > num-i {
+			size = num - i
+		}
+
+		func(paths []RenameKeyInput, index int) {
+			pool.Go(func(ctx context.Context) error {
+				// 删除这一批文件，如果出错了最多重试两次，返回成功删除的结果
+				res, _ := func() ([]kodo.BatchItemRet, error) {
+					var err error
+					var r []kodo.BatchItemRet
+					for i := 0; i < 2; i++ {
+						// 获取一个 rs host
+						failedRsHostsLock.RLock()
+						host := l.nextRsHost(failedRsHosts)
+						failedRsHostsLock.RUnlock()
+
+						// 根据拿到的rs域名构造一个 bucket
+						bucket := l.newBucket(host, "", "")
+
+						var pairs []kodo.KeyPair
+						for _, v := range paths {
+							pairs = append(pairs, kodo.KeyPair{
+								SrcKey:  v.FromKey,
+								DestKey: v.ToKey,
+							})
+						}
+						r, err = bucket.BatchRename(ctx, pairs...)
+
+						// 成功退出
+						if err == nil {
+							succeedHostName(host)
+							return r, nil
+						}
+						// 出错了，获取写锁，记录错误的 rs host
+						failedRsHostsLock.Lock()
+						failedRsHosts[host] = struct{}{}
+						failedRsHostsLock.Unlock()
+						failHostName(host)
+
+						elog.Info("batchRename retry ", i, host, err)
+					}
+					// 重试2次都失败了，返回错误
+					return nil, err
+				}()
+
+				for j, v := range res {
+					if v.Code == 200 {
+						errors[index+j] = nil
+						continue
+					}
+					errors[index+j] = &RenameKeysError{
+						Error:   v.Error,
+						Code:    v.Code,
+						FromKey: paths[j].FromKey,
+						ToKey:   paths[j].ToKey,
+					}
+					elog.Warn("rename bad file:", paths[j], "with code:", v.Code)
+				}
+				return nil
+			})
+		}(input[i:i+size], i)
+	}
+
+	// 等待所有的批量删除任务完成，如果出错了，直接结束返回错误
+	if err := pool.Wait(ctx); err != nil {
+		return nil, err
+	}
+
+	if retries <= 0 {
+		return errors, nil
+	}
+
+	// 如果期望重试的次数大于0，那么尝试一次重试
+	for i, e := range errors {
+		// 对于所有的5xx错误，都记录下来，等待重试
+		if e != nil && e.Code/100 == 5 {
+			failedInputIndexMap = append(failedInputIndexMap, i)
+			failedInput = append(failedInput, RenameKeyInput{
+				FromKey: e.FromKey,
+				ToKey:   e.ToKey,
+			})
+			elog.Warn("rename bad file:", e.FromKey, " -> ", e.ToKey, " with code:", e.Code)
+		}
+	}
+
+	// 如果有需要重试的文件，那么进行重试
+	if len(failedInput) > 0 {
+		elog.Warn("rename ", len(failedInput), " bad files, retried:", retried)
+
+		// 将失败的文件进行重试
+		retriedErrors, err := l.renameKeysWithRetries(ctx, failedInput, retries-1, retried+1)
+
+		// 如果重试出错了，直接返回错误
+		if err != nil {
+			return errors, err
+		}
+
+		// 如果重试成功了，那么把重试的结果合并到原来的结果中
+		for i, retriedError := range retriedErrors {
+			errors[failedInputIndexMap[i]] = retriedError
+		}
+	}
+
+	// 返回最终的结果
+	return errors, nil
 }
 
 func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
@@ -659,35 +1180,7 @@ func (l *singleClusterLister) renameKeys(ctx context.Context, input []RenameKeyI
 		return renameKeysErrors, nil
 	}
 	// 开启回收站，就调用rename接口
-	return newBatchKeysWithRetries(
-		/*context*/ ctx, l, input, 10,
-		"rename",
-		/*action*/ func(bucket kodo.Bucket, input []RenameKeyInput) ([]kodo.BatchItemRet, error) {
-			var entries []kodo.KeyPair
-			for _, e := range input {
-				entries = append(entries, kodo.KeyPair{
-					SrcKey:  e.FromKey,
-					DestKey: e.ToKey,
-				})
-			}
-			return bucket.BatchRename(ctx, entries...)
-		},
-		2, l.batchSize, l.batchConcurrency,
-		func(fromToKey RenameKeyInput, r kodo.BatchItemRet) *RenameKeysError {
-			return &RenameKeysError{
-				Code:    r.Code,
-				FromKey: fromToKey.FromKey,
-				ToKey:   fromToKey.ToKey,
-				Error:   r.Error,
-			}
-		},
-		func(err *RenameKeysError) (code int, fromToKey RenameKeyInput) {
-			return err.Code, RenameKeyInput{
-				FromKey: err.FromKey,
-				ToKey:   err.ToKey,
-			}
-		},
-	).doAndRetryAction()
+	return l.renameKeysWithRetries(ctx, input, 10, 0)
 }
 
 func (l *singleClusterLister) renameKeysFromChannel(ctx context.Context, input <-chan RenameKeyInput, errorsChan chan<- RenameKeysError) error {
