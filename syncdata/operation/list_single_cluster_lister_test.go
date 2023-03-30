@@ -9,12 +9,8 @@ import (
 	"time"
 )
 
-func getSingleClusterLister() *singleClusterLister {
+func getSingleClusterListerForTest() clusterLister {
 	return newSingleClusterLister(getConfig1())
-}
-
-func getSingleClusterLister2() *singleClusterLister {
-	return newSingleClusterLister(getConfig2())
 }
 
 // 上传，列举，拷贝，列举，删除，列举
@@ -25,7 +21,7 @@ func TestSingleClusterLister_upload_listPrefix_copy_delete(t *testing.T) {
 	err := uploader.UploadData(nil, "copy1")
 	assert.NoError(t, err)
 
-	l := getSingleClusterLister()
+	l := getSingleClusterListerForTest()
 
 	r, err := l.listPrefix(context.Background(), "copy1")
 	assert.NoError(t, err)
@@ -60,7 +56,7 @@ func TestSingleClusterLister_upload_listPrefixToChannel_delete(t *testing.T) {
 	checkSkipTest(t)
 	uploader := NewUploader(getConfig1())
 
-	l := getSingleClusterLister()
+	l := getSingleClusterListerForTest()
 
 	ch := make(chan string, 10)
 	for i := 0; i < 10; i++ {
@@ -84,7 +80,7 @@ func TestSingleClusterLister_upload_listPrefixToChannel_delete(t *testing.T) {
 
 func TestSingleClusterLister_upload_copyKeys(t *testing.T) {
 	checkSkipTest(t)
-	l := getSingleClusterLister()
+	l := getSingleClusterListerForTest()
 	uploader := NewUploader(getConfig1())
 
 	err := uploader.UploadData(nil, "copyKeys1")
@@ -119,7 +115,7 @@ func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) 
 	checkSkipTest(t)
 	clearBucket(t)
 	uploader := NewUploader(getConfig1())
-	l := getSingleClusterLister()
+	l := getSingleClusterListerForTest()
 
 	ch1 := make(chan string, 10)
 	ch2 := make(chan CopyKeyInput, 10)
@@ -169,7 +165,7 @@ func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) 
 
 func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.T) {
 	checkSkipTest(t)
-	l := getSingleClusterLister()
+	l := getSingleClusterListerForTest()
 
 	// 批量上传10000个文件
 	makeLotsFiles(t, 10000, 500)
@@ -196,7 +192,7 @@ func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.
 
 func clearBucket(t *testing.T) {
 	checkSkipTest(t)
-	l := getSingleClusterLister()
+	l := getSingleClusterListerForTest()
 	// 列举所有
 	ch := make(chan string, 1000)
 	go func() {
@@ -220,7 +216,7 @@ func clearBucket(t *testing.T) {
 func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T) {
 	checkSkipTest(t)
 
-	l := getSingleClusterLister()
+	l := getSingleClusterListerForTest()
 
 	// 批量上传10000个文件
 	makeLotsFiles(t, 5000, 500)
@@ -242,7 +238,7 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 					FromKey: key,
 					ToKey:   "move/" + key,
 				},
-				ToBucket: l.bucket,
+				ToBucket: getConfig1().Bucket,
 			}
 		}
 		close(ch2)

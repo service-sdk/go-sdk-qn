@@ -30,7 +30,8 @@ type valuesWithIndices[V any] struct {
 	Values   []V
 }
 
-// 根据key判定两个对象是否可以进行转移操作
+// 根据key判定两个对象是否可以进行集群转移操作
+// 只有当fromKey和toKey都能找到相应配置文件且两个配置文件相同时即同一集群节点才可以进行转移
 func (l *multiClusterLister) canTransfer(fromKey, toKey string) (*Config, error) {
 	configOfFromKey, exists := l.config.forKey(fromKey)
 	if !exists {
