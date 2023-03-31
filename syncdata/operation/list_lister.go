@@ -333,16 +333,18 @@ func (l *Lister) deleteDirectory(ctx context.Context, consumerCount int, dir str
 	}()
 
 	keyChan := make(chan string, 1000)
-	// deleter consumer
-	pool.Go(func(ctx context.Context) error {
-		defer close(deleteKeyErrorChan)
-		return l.deleteKeysFromChannel(ctx, keyChan, isForce, deleteKeyErrorChan)
-	})
 	// lister producer
 	pool.Go(func(ctx context.Context) error {
 		defer close(keyChan)
 		return l.listPrefixToChannel(ctx, dirKey, keyChan)
 	})
+	for i := 0; i < consumerCount; i++ {
+		// deleter consumer
+		pool.Go(func(ctx context.Context) error {
+			defer close(deleteKeyErrorChan)
+			return l.deleteKeysFromChannel(ctx, keyChan, isForce, deleteKeyErrorChan)
+		})
+	}
 
 	err = pool.Wait(ctx)
 	wg.Wait()
