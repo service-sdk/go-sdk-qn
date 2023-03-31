@@ -88,14 +88,6 @@ func getConfig2() *Config {
 	}
 }
 
-func getSingleClusterConfigurable() Configurable {
-	return getConfig1()
-}
-
-func getMultiClusterConfigurable() Configurable {
-	return &MultiClustersConfig{}
-}
-
 // 检查是否应该跳过测试
 func checkSkipTest(t *testing.T) {
 	if os.Getenv("QINIU_KODO_TEST") == "" {

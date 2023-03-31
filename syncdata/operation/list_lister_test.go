@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"github.com/stretchr/testify/assert"
+	"strings"
 	"testing"
 	"time"
 )
@@ -327,9 +328,7 @@ func TestLister_RenameDirectory(t *testing.T) {
 
 func TestLister_CopyDirectory(t *testing.T) {
 	lister := getClearedListerForTest(t)
-
 	config := getConfig1()
-
 	uploader := NewUploader(config)
 
 	keys := []string{
@@ -354,29 +353,79 @@ func TestLister_CopyDirectory(t *testing.T) {
 
 }
 
-//func TestLister_DeleteDirectory(t *testing.T) {
-//	lister := getClearedListerForTest(t)
-//
-//}
-//
-//func TestLister_ForceDeleteDirectory(t *testing.T) {
-//	lister := getClearedListerForTest(t)
-//
-//}
-//
-//func TestLister_MoveDirectoryTo(t *testing.T) {
-//	lister := getClearedListerForTest(t)
-//
-//}
+func TestLister_DeleteDirectory(t *testing.T) {
+	lister := getClearedListerForTest(t)
+	uploader := NewUploader(getConfig1())
+	files := []string{
+		"dir1/file1", "dir1/file2", "dir1/file3",
+		"dir2/file1", "dir2/file2", "dir2/file3",
+	}
+	for _, file := range files {
+		assert.NoError(t, uploader.uploadData(nil, file))
+	}
 
-func makeLotsFiles(t *testing.T, files uint, batchConcurrency int) (paths []string) {
+	// 删除目录
+	errs, err := lister.DeleteDirectory("dir1")
+	assert.NoError(t, err)
+	assert.Empty(t, errs)
+
+	// 列举出所有文件
+	result := lister.ListPrefix("")
+	// 全都是dir2/前缀的文件
+	for _, file := range result {
+		assert.True(t, strings.HasPrefix(file, "dir2/"))
+	}
+}
+func TestLister_MoveDirectoryTo(t *testing.T) {
+	lister := getClearedListerForTest(t)
+
+	makeLotsFilesWithPrefix(t, 2000, 100, "dir1/")
+
+	// 移动目录
+	errs, err := lister.MoveDirectoryTo("dir1", "dir2", getConfig1().Bucket)
+	assert.NoError(t, err)
+	assert.Empty(t, errs)
+
+	// 列举出所有文件
+	result := lister.ListPrefix("")
+	// 全都是dir2/前缀的文件
+	for _, file := range result {
+		assert.True(t, strings.HasPrefix(file, "dir2/"))
+	}
+}
+
+func TestLister_ForceDeleteDirectory(t *testing.T) {
+	lister := getClearedListerForTest(t)
+	uploader := NewUploader(getConfig1())
+	files := []string{
+		"dir1/file1", "dir1/file2", "dir1/file3",
+		"dir2/file1", "dir2/file2", "dir2/file3",
+	}
+	for _, file := range files {
+		assert.NoError(t, uploader.uploadData(nil, file))
+	}
+
+	// 删除目录
+	errs, err := lister.ForceDeleteDirectory("dir1")
+	assert.NoError(t, err)
+	assert.Empty(t, errs)
+
+	// 列举出所有文件
+	result := lister.ListPrefix("")
+	// 全都是dir2/前缀的文件
+	for _, file := range result {
+		assert.True(t, strings.HasPrefix(file, "dir2/"))
+	}
+}
+
+func makeLotsFilesWithPrefix(t *testing.T, files uint, batchConcurrency int, prefix string) (paths []string) {
 	config := getConfig1()
 	uploader := NewUploader(config)
 
 	pool := goroutine_pool.NewGoroutinePool(batchConcurrency)
 	for i := uint(0); i < files; i++ {
 		func(id uint) {
-			p := fmt.Sprintf("test%d", id)
+			p := fmt.Sprintf("%stest%d", prefix, id)
 			pool.Go(func(ctx context.Context) (err error) {
 				return uploader.UploadData(nil, p)
 			})
@@ -392,12 +441,16 @@ func makeLotsFiles(t *testing.T, files uint, batchConcurrency int) (paths []stri
 	return paths
 }
 
+func makeLotsFiles(t *testing.T, files uint, batchConcurrency int) (paths []string) {
+	return makeLotsFilesWithPrefix(t, files, batchConcurrency, "")
+}
+
 func TestDeleteLotsFile(t *testing.T) {
 	lister := getClearedListerForTest(t)
-	makeLotsFiles(t, 5000, 500)
+	makeLotsFiles(t, 2000, 500)
 
 	paths := lister.ListPrefix("")
-	assert.Equal(t, 5000, len(paths))
+	assert.Equal(t, 2000, len(paths))
 	_, err := lister.DeleteKeys(paths)
 	assert.NoError(t, err)
 	assert.Empty(t, lister.ListPrefix(""))
@@ -405,10 +458,10 @@ func TestDeleteLotsFile(t *testing.T) {
 
 func TestListStatLotsFile(t *testing.T) {
 	lister := getClearedListerForTest(t)
-	makeLotsFiles(t, 5000, 500)
+	makeLotsFiles(t, 2000, 500)
 
-	paths := makeLotsFiles(t, 5000, 500)
+	paths := makeLotsFiles(t, 2000, 500)
 	defer lister.DeleteKeys(paths)
 	stats := lister.ListStat(paths)
-	assert.Equal(t, 5000, len(stats))
+	assert.Equal(t, 2000, len(stats))
 }

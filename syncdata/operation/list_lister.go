@@ -184,11 +184,7 @@ func (l *Lister) renameDirectory(ctx context.Context, consumerCount int, srcDir,
 	// 创建多个协程，同时执行Rename操作
 	for i := 0; i < consumerCount; i++ {
 		pool.Go(func(ctx context.Context) error {
-			err := l.renameKeysFromChannel(ctx, renameKeyInputChan, resultErrors)
-			if err != nil {
-				return err
-			}
-			return nil
+			return l.renameKeysFromChannel(ctx, renameKeyInputChan, resultErrors)
 		})
 	}
 	// 等待所有的rename消费者结束
@@ -248,11 +244,7 @@ func (l *Lister) moveDirectoryTo(ctx context.Context, consumerCount int, srcDir,
 	// 创建多个协程作为消费者，同时执行操作
 	for i := 0; i < consumerCount; i++ {
 		pool.Go(func(ctx context.Context) error {
-			err := l.moveKeysFromChannel(ctx, moveKeyInputChan, resultErrors)
-			if err != nil {
-				return err
-			}
-			return nil
+			return l.moveKeysFromChannel(ctx, moveKeyInputChan, resultErrors)
 		})
 	}
 	// 等待所有的rename消费者结束
@@ -309,11 +301,7 @@ func (l *Lister) copyDirectory(ctx context.Context, consumerCount int, srcDir, d
 	// 创建多个协程作为消费者，同时执行操作
 	for i := 0; i < consumerCount; i++ {
 		pool.Go(func(ctx context.Context) error {
-			err := l.copyKeysFromChannel(ctx, copyKeyInputChan, resultErrors)
-			if err != nil {
-				return err
-			}
-			return nil
+			return l.copyKeysFromChannel(ctx, copyKeyInputChan, resultErrors)
 		})
 	}
 	// 等待所有的消费者结束
