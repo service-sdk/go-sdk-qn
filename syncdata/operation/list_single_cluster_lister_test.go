@@ -9,19 +9,21 @@ import (
 	"time"
 )
 
-func getSingleClusterListerForTest() clusterLister {
-	return newSingleClusterLister(getConfig1())
+func getClearedSingleClusterListerForTest(t *testing.T) *singleClusterLister {
+	checkSkipTest(t)
+	l := newSingleClusterLister(getConfig1())
+	clearBucket(t, l)
+	return l
 }
 
 // 上传，列举，拷贝，列举，删除，列举
 func TestSingleClusterLister_upload_listPrefix_copy_delete(t *testing.T) {
-	checkSkipTest(t)
+	l := getClearedSingleClusterListerForTest(t)
+
 	uploader := NewUploader(getConfig1())
 
 	err := uploader.UploadData(nil, "copy1")
 	assert.NoError(t, err)
-
-	l := getSingleClusterListerForTest()
 
 	r, err := l.listPrefix(context.Background(), "copy1")
 	assert.NoError(t, err)
@@ -53,10 +55,10 @@ func TestSingleClusterLister_upload_listPrefix_copy_delete(t *testing.T) {
 
 // 上传，列举，删除
 func TestSingleClusterLister_upload_listPrefixToChannel_delete(t *testing.T) {
-	checkSkipTest(t)
+
 	uploader := NewUploader(getConfig1())
 
-	l := getSingleClusterListerForTest()
+	l := getClearedSingleClusterListerForTest(t)
 
 	ch := make(chan string, 10)
 	for i := 0; i < 10; i++ {
@@ -65,9 +67,9 @@ func TestSingleClusterLister_upload_listPrefixToChannel_delete(t *testing.T) {
 	}
 
 	go func() {
+		defer close(ch)
 		err := l.listPrefixToChannel(context.Background(), "listPrefixToChannel", ch)
 		assert.NoError(t, err)
-		close(ch)
 	}()
 
 	for i := 0; i < 10; i++ {
@@ -79,8 +81,8 @@ func TestSingleClusterLister_upload_listPrefixToChannel_delete(t *testing.T) {
 }
 
 func TestSingleClusterLister_upload_copyKeys(t *testing.T) {
-	checkSkipTest(t)
-	l := getSingleClusterListerForTest()
+
+	l := getClearedSingleClusterListerForTest(t)
 	uploader := NewUploader(getConfig1())
 
 	err := uploader.UploadData(nil, "copyKeys1")
@@ -112,10 +114,9 @@ func TestSingleClusterLister_upload_copyKeys(t *testing.T) {
 
 // 上传，拷贝，列举
 func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) {
-	checkSkipTest(t)
-	clearSingleClusterBucket(t)
+
 	uploader := NewUploader(getConfig1())
-	l := getSingleClusterListerForTest()
+	l := getClearedSingleClusterListerForTest(t)
 
 	ch1 := make(chan string, 10)
 	ch2 := make(chan CopyKeyInput, 10)
@@ -130,20 +131,20 @@ func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) 
 
 	// 列举所有文件到ch1中
 	go func() {
+		defer close(ch1)
 		err := l.listPrefixToChannel(context.Background(), "CopyKeyFromChannel", ch1)
 		assert.NoError(t, err)
-		close(ch1)
 	}()
 
 	// 从ch1中读取文件名，构造CopyInput到ch2中
 	go func() {
+		defer close(ch2)
 		for key := range ch1 {
 			ch2 <- CopyKeyInput{
 				FromKey: key,
 				ToKey:   key + "copy",
 			}
 		}
-		close(ch2)
 	}()
 
 	// 从ch2中读取CopyInput，拷贝文件
@@ -164,8 +165,8 @@ func TestSingleClusterLister_upload_copyKeyFromChannel_listPrefix(t *testing.T) 
 }
 
 func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.T) {
-	checkSkipTest(t)
-	l := getSingleClusterListerForTest()
+
+	l := getClearedSingleClusterListerForTest(t)
 
 	// 批量上传10000个文件
 	makeLotsFiles(t, 10000, 500)
@@ -173,13 +174,12 @@ func TestSingleClusterLister_upload_deleteKeysFromChannel_listPrefix(t *testing.
 	// 列举所有
 	ch := make(chan string, 1000)
 	go func() {
+		defer close(ch)
 		elog.Info("listPrefixToChannel start")
 		defer elog.Info("listPrefixToChannel end")
 		err := l.listPrefixToChannel(context.Background(), "", ch)
 
 		assert.NoError(t, err)
-		close(ch)
-
 	}()
 
 	var wg sync.WaitGroup
@@ -202,9 +202,9 @@ func clearBucket(t *testing.T, l clusterLister) {
 	// 列举所有
 	ch := make(chan string, 1000)
 	go func() {
+		defer close(ch)
 		err := l.listPrefixToChannel(context.Background(), "", ch)
 		assert.NoError(t, err)
-		close(ch)
 	}()
 
 	var wg sync.WaitGroup
@@ -219,16 +219,9 @@ func clearBucket(t *testing.T, l clusterLister) {
 	wg.Wait()
 }
 
-func clearSingleClusterBucket(t *testing.T) {
-	checkSkipTest(t)
-	l := getSingleClusterListerForTest()
-	clearBucket(t, l)
-}
-
 func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T) {
-	checkSkipTest(t)
 
-	l := getSingleClusterListerForTest()
+	l := getClearedSingleClusterListerForTest(t)
 
 	// 批量上传5000个文件
 	makeLotsFiles(t, 5000, 500)
@@ -236,14 +229,15 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 	// 列举所有文件名到ch1
 	ch1 := make(chan string, 1000)
 	go func() {
+		defer close(ch1)
 		err := l.listPrefixToChannel(context.Background(), "", ch1)
 		assert.NoError(t, err)
-		close(ch1)
 	}()
 
 	// 从ch1获取所有文件名并转换为MoveKeyInput到ch2
 	ch2 := make(chan MoveKeyInput, 1000)
 	go func() {
+		defer close(ch2)
 		for key := range ch1 {
 			ch2 <- MoveKeyInput{
 				FromToKey: FromToKey{
@@ -253,7 +247,6 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 				ToBucket: getConfig1().Bucket,
 			}
 		}
-		close(ch2)
 	}()
 
 	// 开20个消费者批量move
@@ -271,7 +264,4 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 	r, err := l.listPrefix(context.Background(), "move/")
 	assert.NoError(t, err)
 	assert.Equal(t, 5000, len(r))
-
-	// 清理
-	clearSingleClusterBucket(t)
 }

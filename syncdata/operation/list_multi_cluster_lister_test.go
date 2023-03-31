@@ -8,7 +8,11 @@ import (
 	"testing"
 )
 
-func getMultiClusterListerForTest() *multiClusterLister {
+func getClearedMultiClusterListerForTest(t *testing.T) *multiClusterLister {
+	checkSkipTest(t)
+	clearBucket(t, newSingleClusterLister(getConfig1()))
+	clearBucket(t, newSingleClusterLister(getConfig2()))
+
 	return newMultiClusterLister(
 		&MultiClustersConfig{
 			configs: map[string]*Config{
@@ -20,14 +24,8 @@ func getMultiClusterListerForTest() *multiClusterLister {
 	)
 }
 
-func clearMultiClusterBuckets(t *testing.T) {
-	checkSkipTest(t)
-	clearBucket(t, newSingleClusterLister(getConfig1()))
-	clearBucket(t, newSingleClusterLister(getConfig2()))
-}
-
 func Test_multiClusterLister_canTransfer(t *testing.T) {
-	lister := getMultiClusterListerForTest()
+	lister := getClearedMultiClusterListerForTest(t)
 
 	// fromKey找不到, toKey能找到
 	fromKey, toKey := "c3/1", "c2/2"
@@ -71,27 +69,34 @@ func Test_multiClusterLister_canTransfer(t *testing.T) {
 }
 
 func Test_multiClusterLister_groupBy(t *testing.T) {
-	lister := getMultiClusterListerForTest()
-	keysGroup1 := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
-	keysGroup2 := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
-	keys := append(keysGroup1, keysGroup2...)
+	lister := getClearedMultiClusterListerForTest(t)
 
-	errKeyGroup := []string{"c3/1", "c3/2", "c3/3", "c3/4", "c3/5", "c3/6"}
+	t.Run("not exists key should error", func(t *testing.T) {
 
-	// 不存在的key，需要报错
-	_, err := lister.groupBy(errKeyGroup)
-	assert.Equal(t, ErrUndefinedConfig, err)
+		errKeyGroup := []string{"c3/1", "c3/2", "c3/3", "c3/4", "c3/5", "c3/6"}
 
-	// 存在的key，不需要报错
-	groups, err := lister.groupBy(keys)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(groups))
+		// 不存在的key，需要报错
+		_, err := lister.groupBy(errKeyGroup)
+		assert.Equal(t, ErrUndefinedConfig, err)
+	})
+
+	t.Run("exists key should not error", func(t *testing.T) {
+		keysGroup1 := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
+		keysGroup2 := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
+		keys := append(keysGroup1, keysGroup2...)
+
+		// 存在的key，不需要报错
+		groups, err := lister.groupBy(keys)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(groups))
+	})
 }
 
 func Test_multiClusterLister_listStat(t *testing.T) {
 	cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
 	cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
 	allKeys := append(cluster1Keys, cluster2Keys...)
+	lister := getClearedMultiClusterListerForTest(t)
 
 	uploader1 := newSingleClusterUploader(getConfig1())
 	for _, key := range cluster1Keys {
@@ -103,7 +108,6 @@ func Test_multiClusterLister_listStat(t *testing.T) {
 		assert.NoError(t, uploader2.uploadData(nil, key))
 	}
 
-	lister := getMultiClusterListerForTest()
 	stats, err := lister.listStat(context.Background(), allKeys)
 	assert.NoError(t, err)
 	assert.Equal(t, len(allKeys), len(stats))
@@ -114,18 +118,16 @@ func Test_multiClusterLister_listStat(t *testing.T) {
 		assert.Equal(t, allKeys[i], stat.Name)
 	}
 
-	clearMultiClusterBuckets(t)
 }
 
 func Test_multiClusterLister_listPrefix(t *testing.T) {
 	cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
 	sort.Strings(cluster1Keys)
-
 	cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
 	sort.Strings(cluster2Keys)
-
 	allKeys := append(cluster1Keys, cluster2Keys...)
 	sort.Strings(allKeys)
+	lister := getClearedMultiClusterListerForTest(t)
 
 	uploader1 := newSingleClusterUploader(getConfig1())
 	for _, key := range cluster1Keys {
@@ -137,7 +139,6 @@ func Test_multiClusterLister_listPrefix(t *testing.T) {
 		assert.NoError(t, uploader2.uploadData(nil, key))
 	}
 
-	lister := getMultiClusterListerForTest()
 	items, err := lister.listPrefix(context.Background(), "c1/")
 	assert.NoError(t, err)
 	assert.Equal(t, len(cluster1Keys), len(items))
@@ -153,11 +154,11 @@ func Test_multiClusterLister_listPrefix(t *testing.T) {
 	assert.Equal(t, len(allKeys), len(items))
 	assert.Equal(t, allKeys, items)
 
-	clearMultiClusterBuckets(t)
 }
 
 func Test_multiClusterLister_delete(t *testing.T) {
-	lister := getMultiClusterListerForTest()
+	lister := getClearedMultiClusterListerForTest(t)
+
 	// 无法根据key找到对应的cluster config
 	// 需要返回一个错误
 	err := lister.delete("c3/1", true)
@@ -179,7 +180,8 @@ func Test_multiClusterLister_delete(t *testing.T) {
 }
 
 func Test_multiClusterLister_copy(t *testing.T) {
-	lister := getMultiClusterListerForTest()
+	lister := getClearedMultiClusterListerForTest(t)
+
 	// 无法根据key找到对应的cluster config
 	// 需要返回一个错误
 	err := lister.copy("c3/1", "c3/2")
@@ -201,7 +203,8 @@ func Test_multiClusterLister_copy(t *testing.T) {
 }
 
 func Test_multiCluster_moveTo(t *testing.T) {
-	lister := getMultiClusterListerForTest()
+	lister := getClearedMultiClusterListerForTest(t)
+
 	// 无法根据key找到对应的cluster config
 	// 需要返回一个错误
 	err := lister.moveTo("c3/1", "go-ipfs-sdk-3", "c3/2")
@@ -223,7 +226,8 @@ func Test_multiCluster_moveTo(t *testing.T) {
 }
 
 func Test_multiClusterLister_rename(t *testing.T) {
-	lister := getMultiClusterListerForTest()
+	lister := getClearedMultiClusterListerForTest(t)
+
 	// 无法根据key找到对应的cluster config
 	// 需要返回一个错误
 	err := lister.rename("c3/1", "c3/2")
@@ -246,13 +250,9 @@ func Test_multiClusterLister_rename(t *testing.T) {
 
 func Test_multiClusterLister_deleteKeys(t *testing.T) {
 	cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
-	sort.Strings(cluster1Keys)
-
 	cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
-	sort.Strings(cluster2Keys)
-
 	allKeys := append(cluster1Keys, cluster2Keys...)
-	sort.Strings(allKeys)
+	lister := getClearedMultiClusterListerForTest(t)
 
 	uploader1 := newSingleClusterUploader(getConfig1())
 	for _, key := range cluster1Keys {
@@ -264,7 +264,6 @@ func Test_multiClusterLister_deleteKeys(t *testing.T) {
 		assert.NoError(t, uploader2.uploadData(nil, key))
 	}
 
-	lister := getMultiClusterListerForTest()
 	errs, err := lister.deleteKeys(context.Background(), allKeys, true)
 	assert.NoError(t, err)
 	assert.Equal(t, len(allKeys), len(errs))
@@ -277,15 +276,14 @@ func Test_multiClusterLister_deleteKeys(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, items)
 
-	clearMultiClusterBuckets(t)
 }
 
 func Test_multiClusterLister_copyKeys(t *testing.T) {
 	t.Run("copy keys between same clusters", func(t *testing.T) {
-		clearMultiClusterBuckets(t)
 
 		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
 		sort.Strings(cluster1Keys)
+		lister := getClearedMultiClusterListerForTest(t)
 
 		uploader1 := newSingleClusterUploader(getConfig1())
 		for _, key := range cluster1Keys {
@@ -300,7 +298,6 @@ func Test_multiClusterLister_copyKeys(t *testing.T) {
 				ToKey:   key + "-copy",
 			})
 		}
-		lister := getMultiClusterListerForTest()
 		errs, err := lister.copyKeys(context.Background(), copyInputs)
 		assert.NoError(t, err)
 		assert.Equal(t, len(cluster1Keys), len(errs))
@@ -313,7 +310,8 @@ func Test_multiClusterLister_copyKeys(t *testing.T) {
 		assert.Equal(t, len(cluster1Keys)*2, len(items))
 	})
 	t.Run("copy keys between different clusters", func(t *testing.T) {
-		clearMultiClusterBuckets(t)
+		lister := getClearedMultiClusterListerForTest(t)
+
 		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
 		uploader1 := newSingleClusterUploader(getConfig1())
 		for _, key := range cluster1Keys {
@@ -328,7 +326,6 @@ func Test_multiClusterLister_copyKeys(t *testing.T) {
 				ToKey:   strings.Replace(key, "c1/", "c2/", 1),
 			})
 		}
-		lister := getMultiClusterListerForTest()
 		_, err := lister.copyKeys(context.Background(), copyInputs)
 		assert.Error(t, err)
 
@@ -337,7 +334,8 @@ func Test_multiClusterLister_copyKeys(t *testing.T) {
 		assert.Empty(t, items)
 	})
 	t.Run("copy keys between partial same clusters", func(t *testing.T) {
-		clearMultiClusterBuckets(t)
+		lister := getClearedMultiClusterListerForTest(t)
+
 		copyInputs := []CopyKeyInput{
 			{"c1/1", "c1/1-copy"},
 			{"c2/1", "c2/1-copy"},
@@ -350,7 +348,6 @@ func Test_multiClusterLister_copyKeys(t *testing.T) {
 		}
 
 		// 开始复制
-		lister := getMultiClusterListerForTest()
 		_, err := lister.copyKeys(context.Background(), copyInputs)
 		assert.Error(t, err)
 
@@ -368,8 +365,7 @@ func Test_multiClusterLister_deleteKeysFromChannel(t *testing.T) {
 	cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
 	cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
 	allKeys := append(cluster1Keys, cluster2Keys...)
-
-	clearMultiClusterBuckets(t)
+	lister := getClearedMultiClusterListerForTest(t)
 
 	uploader1 := newSingleClusterUploader(getConfig1())
 	for _, key := range cluster1Keys {
@@ -383,12 +379,11 @@ func Test_multiClusterLister_deleteKeysFromChannel(t *testing.T) {
 
 	ch := make(chan string, 10)
 	go func() {
+		defer close(ch)
 		for _, key := range allKeys {
 			ch <- key
 		}
-		close(ch)
 	}()
-	lister := getMultiClusterListerForTest()
 
 	assert.NoError(t, lister.deleteKeysFromChannel(context.Background(), ch, true, func() chan<- DeleteKeysError {
 		errCh := make(chan DeleteKeysError, 10)
@@ -408,8 +403,7 @@ func Test_multiClusterLister_copyKeysFromChannel(t *testing.T) {
 		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
 		cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
 		allKeys := append(cluster1Keys, cluster2Keys...)
-
-		clearMultiClusterBuckets(t)
+		lister := getClearedMultiClusterListerForTest(t)
 
 		uploader1 := newSingleClusterUploader(getConfig1())
 		for _, key := range cluster1Keys {
@@ -431,7 +425,6 @@ func Test_multiClusterLister_copyKeysFromChannel(t *testing.T) {
 				}
 			}
 		}()
-		lister := getMultiClusterListerForTest()
 
 		assert.NoError(t, lister.copyKeysFromChannel(context.Background(), ch, func() chan<- CopyKeysError {
 			errCh := make(chan CopyKeysError, 10)
@@ -452,8 +445,7 @@ func Test_multiClusterLister_moveKeysFromChannel(t *testing.T) {
 		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
 		cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
 		allKeys := append(cluster1Keys, cluster2Keys...)
-
-		clearMultiClusterBuckets(t)
+		lister := getClearedMultiClusterListerForTest(t)
 
 		uploader1 := newSingleClusterUploader(getConfig1())
 		for _, key := range cluster1Keys {
@@ -478,7 +470,6 @@ func Test_multiClusterLister_moveKeysFromChannel(t *testing.T) {
 				}
 			}
 		}()
-		lister := getMultiClusterListerForTest()
 
 		assert.NoError(t, lister.moveKeysFromChannel(context.Background(), ch, func() chan<- MoveKeysError {
 			errCh := make(chan MoveKeysError, 10)
@@ -502,8 +493,7 @@ func Test_multiClusterLister_renameKeysFromChannel(t *testing.T) {
 		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
 		cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
 		allKeys := append(cluster1Keys, cluster2Keys...)
-
-		clearMultiClusterBuckets(t)
+		lister := getClearedMultiClusterListerForTest(t)
 
 		uploader1 := newSingleClusterUploader(getConfig1())
 		for _, key := range cluster1Keys {
@@ -525,7 +515,6 @@ func Test_multiClusterLister_renameKeysFromChannel(t *testing.T) {
 				}
 			}
 		}()
-		lister := getMultiClusterListerForTest()
 
 		assert.NoError(t, lister.renameKeysFromChannel(context.Background(), ch, func() chan<- RenameKeysError {
 			errCh := make(chan RenameKeysError, 10)
@@ -534,6 +523,7 @@ func Test_multiClusterLister_renameKeysFromChannel(t *testing.T) {
 			}()
 			return errCh
 		}()))
+
 		// 再次列举所有的key应当全部重命名成功
 		items, err := lister.listPrefix(context.Background(), "c")
 		assert.NoError(t, err)

@@ -50,12 +50,12 @@ type keysWithIndices struct {
 
 func (l *multiClusterLister) groupBy(keys []string) (clusterPathsMap map[*Config]*keysWithIndices, err error) {
 	// 将keys按照集群进行分组
+	clusterPathsMap = make(map[*Config]*keysWithIndices)
+
 	for i, key := range keys {
 		if config, exists := l.config.forKey(key); !exists {
 			return nil, ErrUndefinedConfig
 		} else {
-			clusterPathsMap = make(map[*Config]*keysWithIndices)
-
 			// 不包含则创建
 			if e, contains := clusterPathsMap[config]; !contains {
 				e = &keysWithIndices{Keys: make([]string, 0, 1), IndexMap: make([]int, 0, 1)}
@@ -120,10 +120,10 @@ func (l *multiClusterLister) listPrefix(ctx context.Context, prefix string) ([]s
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for key := range ch {
 			allKeys = append(allKeys, key)
 		}
-		wg.Done()
 	}()
 
 	err := l.listPrefixToChannel(ctx, prefix, ch)

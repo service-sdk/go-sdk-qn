@@ -9,10 +9,14 @@ import (
 	"time"
 )
 
+func getClearedListerForTest(t *testing.T) *Lister {
+	return &Lister{getClearedSingleClusterListerForTest(t)}
+}
+
 func TestListPrefix(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	result := lister.ListPrefix("")
@@ -33,9 +37,9 @@ func TestListPrefix(t *testing.T) {
 }
 
 func TestLister_Rename(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	// 创建文件 test1
@@ -63,9 +67,9 @@ func TestLister_Rename(t *testing.T) {
 }
 
 func TestLister_MoveTo(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	// 创建文件 test1
@@ -90,8 +94,7 @@ func TestLister_MoveTo(t *testing.T) {
 }
 
 func TestLister_Copy(t *testing.T) {
-	checkSkipTest(t)
-	lister := NewLister(getConfig1())
+	lister := getClearedListerForTest(t)
 	uploader := NewUploader(getConfig1())
 
 	// 创建文件 test1
@@ -116,9 +119,9 @@ func TestLister_Copy(t *testing.T) {
 }
 
 func TestLister_Delete(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	// 创建文件 test1
@@ -145,9 +148,9 @@ func TestLister_Delete(t *testing.T) {
 }
 
 func TestLister_ForceDelete(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	// 创建文件 test1
@@ -174,9 +177,9 @@ func TestLister_ForceDelete(t *testing.T) {
 }
 
 func TestLister_ListStat(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	type TestCase struct {
@@ -213,9 +216,9 @@ func TestLister_ListStat(t *testing.T) {
 }
 
 func TestLister_DeleteKeys(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	type TestCase struct {
@@ -254,9 +257,9 @@ func TestLister_DeleteKeys(t *testing.T) {
 }
 
 func TestLister_ForceDeleteKeys(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	type TestCase struct {
@@ -296,10 +299,9 @@ func TestLister_ForceDeleteKeys(t *testing.T) {
 }
 
 func TestLister_RenameDirectory(t *testing.T) {
-	checkSkipTest(t)
-	clearSingleClusterBucket(t)
+	lister := getClearedListerForTest(t)
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	keys := []string{
@@ -323,15 +325,11 @@ func TestLister_RenameDirectory(t *testing.T) {
 	fmt.Println(result)
 }
 
-func TestLister_MoveDirectoryTo(t *testing.T) {
-	checkSkipTest(t)
-
-}
 func TestLister_CopyDirectory(t *testing.T) {
-	checkSkipTest(t)
-	clearSingleClusterBucket(t)
+	lister := getClearedListerForTest(t)
+
 	config := getConfig1()
-	lister := NewLister(config)
+
 	uploader := NewUploader(config)
 
 	keys := []string{
@@ -356,16 +354,20 @@ func TestLister_CopyDirectory(t *testing.T) {
 
 }
 
-func TestLister_DeleteDirectory(t *testing.T) {
-	checkSkipTest(t)
-	clearSingleClusterBucket(t)
-
-}
-
-func TestLister_ForceDeleteDirectory(t *testing.T) {
-	checkSkipTest(t)
-
-}
+//func TestLister_DeleteDirectory(t *testing.T) {
+//	lister := getClearedListerForTest(t)
+//
+//}
+//
+//func TestLister_ForceDeleteDirectory(t *testing.T) {
+//	lister := getClearedListerForTest(t)
+//
+//}
+//
+//func TestLister_MoveDirectoryTo(t *testing.T) {
+//	lister := getClearedListerForTest(t)
+//
+//}
 
 func makeLotsFiles(t *testing.T, files uint, batchConcurrency int) (paths []string) {
 	config := getConfig1()
@@ -391,10 +393,8 @@ func makeLotsFiles(t *testing.T, files uint, batchConcurrency int) (paths []stri
 }
 
 func TestDeleteLotsFile(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	makeLotsFiles(t, 5000, 500)
-	config := getConfig1()
-	lister := NewLister(config)
 
 	paths := lister.ListPrefix("")
 	assert.Equal(t, 5000, len(paths))
@@ -404,10 +404,8 @@ func TestDeleteLotsFile(t *testing.T) {
 }
 
 func TestListStatLotsFile(t *testing.T) {
-	checkSkipTest(t)
+	lister := getClearedListerForTest(t)
 	makeLotsFiles(t, 5000, 500)
-	config := getConfig1()
-	lister := NewLister(config)
 
 	paths := makeLotsFiles(t, 5000, 500)
 	defer lister.DeleteKeys(paths)

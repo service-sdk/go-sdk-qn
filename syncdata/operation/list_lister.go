@@ -162,17 +162,14 @@ func (l *Lister) renameDirectory(ctx context.Context, consumerCount int, srcDir,
 	// 列举所有的文件
 	listPrefixChan := make(chan string, 100)
 	pool.Go(func(ctx context.Context) error {
-		err = l.listPrefixToChannel(ctx, srcDirKey, listPrefixChan)
-		if err != nil {
-			return err
-		}
-		close(listPrefixChan)
-		return nil
+		defer close(listPrefixChan)
+		return l.listPrefixToChannel(ctx, srcDirKey, listPrefixChan)
 	})
 
 	// 生成重命名所有的文件的input
 	renameKeyInputChan := make(chan RenameKeyInput, 100)
 	pool.Go(func(ctx context.Context) error {
+		defer close(renameKeyInputChan)
 		for key := range listPrefixChan {
 			// replaceFirst
 			destKey := destDirKey + key[len(srcDirKey):]
@@ -181,7 +178,6 @@ func (l *Lister) renameDirectory(ctx context.Context, consumerCount int, srcDir,
 				ToKey:   destKey,
 			}
 		}
-		close(renameKeyInputChan)
 		return nil
 	})
 
@@ -227,17 +223,14 @@ func (l *Lister) moveDirectoryTo(ctx context.Context, consumerCount int, srcDir,
 	// 列举所有的文件
 	listPrefixChan := make(chan string, 100)
 	pool.Go(func(ctx context.Context) error {
-		err = l.listPrefixToChannel(ctx, srcDirKey, listPrefixChan)
-		if err != nil {
-			return err
-		}
-		close(listPrefixChan)
-		return nil
+		defer close(listPrefixChan)
+		return l.listPrefixToChannel(ctx, srcDirKey, listPrefixChan)
 	})
 
 	// 生成重命名所有的文件的input
 	moveKeyInputChan := make(chan MoveKeyInput, 100)
 	pool.Go(func(ctx context.Context) error {
+		defer close(moveKeyInputChan)
 		for key := range listPrefixChan {
 			// replaceFirst
 			destKey := destDirKey + key[len(srcDirKey):]
@@ -249,7 +242,6 @@ func (l *Lister) moveDirectoryTo(ctx context.Context, consumerCount int, srcDir,
 				ToBucket: toBucket,
 			}
 		}
-		close(moveKeyInputChan)
 		return nil
 	})
 
@@ -295,17 +287,14 @@ func (l *Lister) copyDirectory(ctx context.Context, consumerCount int, srcDir, d
 	// 列举所有的文件
 	listPrefixChan := make(chan string, 100)
 	pool.Go(func(ctx context.Context) error {
-		err = l.listPrefixToChannel(ctx, srcDirKey, listPrefixChan)
-		if err != nil {
-			return err
-		}
-		close(listPrefixChan)
-		return nil
+		defer close(listPrefixChan)
+		return l.listPrefixToChannel(ctx, srcDirKey, listPrefixChan)
 	})
 
 	// 生成重命名所有的文件的input
 	copyKeyInputChan := make(chan CopyKeyInput, 100)
 	pool.Go(func(ctx context.Context) error {
+		defer close(copyKeyInputChan)
 		for key := range listPrefixChan {
 			// replaceFirst
 			destKey := destDirKey + key[len(srcDirKey):]
@@ -314,7 +303,6 @@ func (l *Lister) copyDirectory(ctx context.Context, consumerCount int, srcDir, d
 				ToKey:   destKey,
 			}
 		}
-		close(copyKeyInputChan)
 		return nil
 	})
 
@@ -359,15 +347,13 @@ func (l *Lister) deleteDirectory(ctx context.Context, consumerCount int, dir str
 	keyChan := make(chan string, 1000)
 	// deleter consumer
 	pool.Go(func(ctx context.Context) error {
-		err := l.deleteKeysFromChannel(ctx, keyChan, isForce, deleteKeyErrorChan)
-		close(deleteKeyErrorChan)
-		return err
+		defer close(deleteKeyErrorChan)
+		return l.deleteKeysFromChannel(ctx, keyChan, isForce, deleteKeyErrorChan)
 	})
 	// lister producer
 	pool.Go(func(ctx context.Context) error {
-		err := l.listPrefixToChannel(ctx, dirKey, keyChan)
-		close(keyChan)
-		return err
+		defer close(keyChan)
+		return l.listPrefixToChannel(ctx, dirKey, keyChan)
 	})
 
 	err = pool.Wait(ctx)
