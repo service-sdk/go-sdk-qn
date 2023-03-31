@@ -25,23 +25,22 @@ func newMultiClusterLister(config Configurable, multiClustersConcurrency int) *m
 	}
 }
 
-// 根据key判定两个对象是否可以进行集群转移操作
+// 根据key判定两个对象是否可以进行集群传输操作
 // 只有当fromKey和toKey都能找到相应配置文件且两个配置文件相同时即同一集群节点才可以进行转移
 func (l *multiClusterLister) canTransfer(fromKey, toKey string) (*Config, error) {
-	configOfFromKey, exists := l.config.forKey(fromKey)
-	if !exists {
+	if configOfFromKey, exists := l.config.forKey(fromKey); !exists {
+		// fromKey的配置文件不存在
 		return nil, ErrUndefinedConfig
-	}
-	configOfToKey, exists := l.config.forKey(toKey)
-	if !exists {
+	} else if configOfToKey, exists := l.config.forKey(toKey); !exists {
+		// toKey的配置文件不存在
 		return nil, ErrUndefinedConfig
-	}
-
-	// 两个不同的集群之间不能进行互相转移
-	if configOfFromKey != configOfToKey {
+	} else if configOfFromKey != configOfToKey {
+		// 两个不同的集群之间不能进行互相传输
 		return nil, ErrCannotTransferBetweenDifferentClusters
+	} else {
+		// 两个配置文件相同，即同一集群节点，可以进行传输
+		return configOfFromKey, nil
 	}
-	return configOfFromKey, nil
 }
 
 type keysWithIndices struct {
@@ -51,54 +50,51 @@ type keysWithIndices struct {
 
 func (l *multiClusterLister) groupBy(keys []string) (clusterPathsMap map[*Config]*keysWithIndices, err error) {
 	// 将keys按照集群进行分组
-	clusterPathsMap = make(map[*Config]*keysWithIndices)
 	for i, key := range keys {
-		config, exists := l.config.forKey(key)
-		if !exists {
+		if config, exists := l.config.forKey(key); !exists {
 			return nil, ErrUndefinedConfig
+		} else {
+			clusterPathsMap = make(map[*Config]*keysWithIndices)
+
+			// 不包含则创建
+			if e, contains := clusterPathsMap[config]; !contains {
+				e = &keysWithIndices{Keys: make([]string, 0, 1), IndexMap: make([]int, 0, 1)}
+				clusterPathsMap[config] = e
+			}
+
+			e := clusterPathsMap[config]
+
+			// 将key添加到对应的集群中
+			e.IndexMap = append(e.IndexMap, i)
+			e.Keys = append(e.Keys, key)
 		}
-
-		// 不包含则创建
-		if e, contains := clusterPathsMap[config]; !contains {
-			e = &keysWithIndices{Keys: make([]string, 0, 1), IndexMap: make([]int, 0, 1)}
-			clusterPathsMap[config] = e
-		}
-
-		e := clusterPathsMap[config]
-
-		// 将key添加到对应的集群中
-		e.IndexMap = append(e.IndexMap, i)
-		e.Keys = append(e.Keys, key)
 	}
 	return clusterPathsMap, nil
 }
 
 // 并发列举每个
 func (l *multiClusterLister) listStat(ctx context.Context, keys []string) ([]*FileStat, error) {
-	result := make([]*FileStat, len(keys))
-
-	clusterPathsMap, err := l.groupBy(keys)
-	if err != nil {
+	if clusterPathsMap, err := l.groupBy(keys); err != nil {
 		return nil, err
+	} else {
+		result := make([]*FileStat, len(keys))
+		pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+		for config, keysWithIndex := range clusterPathsMap {
+			func(config *Config, keys []string, indexMap []int) {
+				pool.Go(func(ctx context.Context) error {
+					if stats, err := newSingleClusterLister(config).listStat(ctx, keys); err != nil {
+						return err
+					} else {
+						for i := range stats {
+							result[indexMap[i]] = stats[i]
+						}
+						return nil
+					}
+				})
+			}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
+		}
+		return result, pool.Wait(ctx)
 	}
-
-	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	for config, keysWithIndex := range clusterPathsMap {
-		func(config *Config, keys []string, indexMap []int) {
-			pool.Go(func(ctx context.Context) error {
-				stats, err := newSingleClusterLister(config).listStat(ctx, keys)
-				if err != nil {
-					return err
-				}
-				for i := range stats {
-					result[indexMap[i]] = stats[i]
-				}
-				return nil
-			})
-		}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
-	}
-	err = pool.Wait(ctx)
-	return result, err
 }
 
 func (l *multiClusterLister) listPrefixToChannel(ctx context.Context, prefix string, output chan<- string) error {
@@ -106,11 +102,11 @@ func (l *multiClusterLister) listPrefixToChannel(ctx context.Context, prefix str
 	_ = l.config.forEachClusterConfig(func(_ string, config *Config) error {
 		// 为每个集群创建一个 goroutine 进行 list 到 channel 中
 		pool.Go(func(ctx context.Context) error {
-			err := newSingleClusterLister(config).listPrefixToChannel(ctx, prefix, output)
-			if err != nil {
+			if err := newSingleClusterLister(config).listPrefixToChannel(ctx, prefix, output); err != nil {
 				return err
+			} else {
+				return nil
 			}
-			return nil
 		})
 		return nil
 	})
@@ -120,6 +116,7 @@ func (l *multiClusterLister) listPrefixToChannel(ctx context.Context, prefix str
 func (l *multiClusterLister) listPrefix(ctx context.Context, prefix string) ([]string, error) {
 	allKeys := make([]string, 0)
 	ch := make(chan string, 100)
+
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -141,186 +138,175 @@ func (l *multiClusterLister) listPrefix(ctx context.Context, prefix string) ([]s
 }
 
 func (l *multiClusterLister) delete(key string, isForce bool) error {
-	c, exists := l.config.forKey(key)
-	if !exists {
+	if c, exists := l.config.forKey(key); !exists {
 		return ErrUndefinedConfig
+	} else {
+		return newSingleClusterLister(c).delete(key, isForce)
 	}
-	return newSingleClusterLister(c).delete(key, isForce)
 }
 
 func (l *multiClusterLister) copy(fromKey, toKey string) error {
-	c, err := l.canTransfer(fromKey, toKey)
-	if err != nil {
+	if c, err := l.canTransfer(fromKey, toKey); err != nil {
 		return err
+	} else {
+		return newSingleClusterLister(c).copy(fromKey, toKey)
 	}
-	return newSingleClusterLister(c).copy(fromKey, toKey)
 }
 func (l *multiClusterLister) moveTo(fromKey string, toBucket string, toKey string) error {
-	c, err := l.canTransfer(fromKey, toKey)
-	if err != nil {
+	if c, err := l.canTransfer(fromKey, toKey); err != nil {
 		return err
+	} else {
+		return newSingleClusterLister(c).moveTo(fromKey, toBucket, toKey)
 	}
-	return newSingleClusterLister(c).moveTo(fromKey, toBucket, toKey)
 }
 
 func (l *multiClusterLister) rename(fromKey, toKey string) error {
-	c, err := l.canTransfer(fromKey, toKey)
-	if err != nil {
+	if c, err := l.canTransfer(fromKey, toKey); err != nil {
 		return err
+	} else {
+		return newSingleClusterLister(c).rename(fromKey, toKey)
 	}
-	return newSingleClusterLister(c).rename(fromKey, toKey)
 }
 
 func (l *multiClusterLister) deleteKeys(ctx context.Context, keys []string, isForce bool) ([]*DeleteKeysError, error) {
-	result := make([]*DeleteKeysError, len(keys))
-
-	clusterPathsMap, err := l.groupBy(keys)
-	if err != nil {
+	if clusterPathsMap, err := l.groupBy(keys); err != nil {
+		// 只要一个key找不到对应的集群，就直接返回错误
 		return nil, err
+	} else {
+		result := make([]*DeleteKeysError, len(keys))
+		pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+		for config, keysWithIndex := range clusterPathsMap {
+			func(config *Config, keys []string, indexMap []int) {
+				pool.Go(func(ctx context.Context) error {
+					if deleteErrors, err := newSingleClusterLister(config).deleteKeys(ctx, keys, isForce); err != nil {
+						// 只要有一个集群删除失败了，就停止所有的删除，并返回错误
+						return err
+					} else {
+						for i, deleteError := range deleteErrors {
+							result[indexMap[i]] = deleteError
+						}
+						return nil
+					}
+				})
+			}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
+		}
+		return result, pool.Wait(ctx)
 	}
-
-	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	for config, keysWithIndex := range clusterPathsMap {
-		func(config *Config, keys []string, indexMap []int) {
-			pool.Go(func(ctx context.Context) error {
-				deleteErrors, err := newSingleClusterLister(config).deleteKeys(ctx, keys, isForce)
-				if err != nil {
-					return err
-				}
-				for i, deleteError := range deleteErrors {
-					result[indexMap[i]] = deleteError
-				}
-				return nil
-			})
-		}(config, keysWithIndex.Keys, keysWithIndex.IndexMap)
-	}
-	err = pool.Wait(ctx)
-	return result, err
 }
 
 func (l *multiClusterLister) copyKeys(ctx context.Context, inputs []CopyKeyInput) ([]*CopyKeysError, error) {
-	result := make([]*CopyKeysError, len(inputs))
-
 	type copyKeyInputsWithIndices struct {
 		Inputs   []CopyKeyInput
 		IndexMap []int
 	}
 
-	clusterPathsMap := make(map[*Config]*copyKeyInputsWithIndices)
+	// 将所有的input按照fromKey所在集群进行分组
+	groupByInputs := func() (map[*Config]*copyKeyInputsWithIndices, error) {
+		clusterPathsMap := make(map[*Config]*copyKeyInputsWithIndices)
 
-	// 将所有的canTransfer不满足的key提前赋值
-	for i, input := range inputs {
-		if _, err := l.canTransfer(input.FromKey, input.ToKey); err != nil {
-			result[i] = &CopyKeysError{
-				Code:    -1,
-				Error:   err.Error(),
-				FromKey: input.FromKey,
-				ToKey:   input.ToKey,
-			}
-		} else {
-			config, exists := l.config.forKey(input.FromKey)
-			if !exists {
-				return nil, ErrUndefinedConfig
-			}
-			// 都是canTransfer的, 不包含则创建
-			if e, contains := clusterPathsMap[config]; !contains {
-				e = &copyKeyInputsWithIndices{
-					Inputs:   make([]CopyKeyInput, 0, 1),
-					IndexMap: make([]int, 0, 1),
+		// 将所有的canTransfer不满足的key提前赋值
+		for i, input := range inputs {
+			if _, err := l.canTransfer(input.FromKey, input.ToKey); err != nil {
+				return nil, err
+			} else {
+				config, _ := l.config.forKey(input.FromKey)
+
+				e, contains := clusterPathsMap[config]
+				if !contains {
+					// 都是canTransfer的, 不包含则创建
+					clusterPathsMap[config] = &copyKeyInputsWithIndices{
+						Inputs:   make([]CopyKeyInput, 0, 1),
+						IndexMap: make([]int, 0, 1),
+					}
+					e = clusterPathsMap[config]
 				}
-				clusterPathsMap[config] = e
+
+				// 将key添加到对应的集群中
+				e.IndexMap = append(e.IndexMap, i)
+				e.Inputs = append(e.Inputs, input)
 			}
-
-			e := clusterPathsMap[config]
-
-			// 将key添加到对应的集群中
-			e.IndexMap = append(e.IndexMap, i)
-			e.Inputs = append(e.Inputs, input)
 		}
+
+		return clusterPathsMap, nil
 	}
 
-	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	for config, keysWithIndex := range clusterPathsMap {
-		func(config *Config, inputs []CopyKeyInput, indexMap []int) {
-			pool.Go(func(ctx context.Context) error {
-				copyErrors, err := newSingleClusterLister(config).copyKeys(ctx, inputs)
-				if err != nil {
-					return err
-				}
-				for i, copyError := range copyErrors {
-					result[indexMap[i]] = copyError
-				}
-				return nil
-			})
-		}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
+	if clusterPathsMap, err := groupByInputs(); err != nil {
+		return nil, err
+	} else {
+		result := make([]*CopyKeysError, len(inputs))
+		pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+		for config, keysWithIndex := range clusterPathsMap {
+			func(config *Config, inputs []CopyKeyInput, indexMap []int) {
+				pool.Go(func(ctx context.Context) error {
+					copyErrors, err := newSingleClusterLister(config).copyKeys(ctx, inputs)
+					if err != nil {
+						return err
+					}
+					for i, copyError := range copyErrors {
+						result[indexMap[i]] = copyError
+					}
+					return nil
+				})
+			}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
+		}
+		return result, pool.Wait(ctx)
 	}
-
-	err := pool.Wait(ctx)
-	return result, err
 }
 
 func (l *multiClusterLister) moveKeys(ctx context.Context, input []MoveKeyInput) ([]*MoveKeysError, error) {
-	result := make([]*MoveKeysError, len(input))
-
 	type moveKeyInputsWithIndices struct {
 		Inputs   []MoveKeyInput
 		IndexMap []int
 	}
 
-	clusterPathsMap := make(map[*Config]*moveKeyInputsWithIndices)
-
-	// 将所有的canTransfer不满足的key提前赋值
-	for i, input := range input {
-		if _, err := l.canTransfer(input.FromKey, input.ToKey); err != nil {
-			result[i] = &MoveKeysError{
-				FromToKeyError: FromToKeyError{
-					Code:    -1,
-					Error:   err.Error(),
-					FromKey: input.FromKey,
-					ToKey:   input.ToKey,
-				},
-				ToBucket: input.ToBucket,
-			}
-		} else {
-			config, exists := l.config.forKey(input.FromKey)
-			if !exists {
-				return nil, ErrUndefinedConfig
-			}
-			// 都是canTransfer的, 不包含则创建
-			if e, contains := clusterPathsMap[config]; !contains {
-				e = &moveKeyInputsWithIndices{
-					Inputs:   make([]MoveKeyInput, 0, 1),
-					IndexMap: make([]int, 0, 1),
+	groupByInputs := func() (map[*Config]*moveKeyInputsWithIndices, error) {
+		clusterPathsMap := make(map[*Config]*moveKeyInputsWithIndices)
+		// 将所有的canTransfer不满足的key提前赋值
+		for i, input := range input {
+			if _, err := l.canTransfer(input.FromKey, input.ToKey); err != nil {
+				return nil, err
+			} else {
+				config, _ := l.config.forKey(input.FromKey)
+				// 都是canTransfer的, 不包含则创建
+				if e, contains := clusterPathsMap[config]; !contains {
+					e = &moveKeyInputsWithIndices{
+						Inputs:   make([]MoveKeyInput, 0, 1),
+						IndexMap: make([]int, 0, 1),
+					}
+					clusterPathsMap[config] = e
 				}
-				clusterPathsMap[config] = e
+
+				e := clusterPathsMap[config]
+
+				// 将key添加到对应的集群中
+				e.IndexMap = append(e.IndexMap, i)
+				e.Inputs = append(e.Inputs, input)
 			}
-
-			e := clusterPathsMap[config]
-
-			// 将key添加到对应的集群中
-			e.IndexMap = append(e.IndexMap, i)
-			e.Inputs = append(e.Inputs, input)
 		}
+		return clusterPathsMap, nil
 	}
 
-	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	for config, keysWithIndex := range clusterPathsMap {
-		func(config *Config, inputs []MoveKeyInput, indexMap []int) {
-			pool.Go(func(ctx context.Context) error {
-				moveErrors, err := newSingleClusterLister(config).moveKeys(ctx, inputs)
-				if err != nil {
-					return err
-				}
-				for i, moveError := range moveErrors {
-					result[indexMap[i]] = moveError
-				}
-				return nil
-			})
-		}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
+	if clusterPathsMap, err := groupByInputs(); err != nil {
+		return nil, err
+	} else {
+		result := make([]*MoveKeysError, len(input))
+		pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+		for config, keysWithIndex := range clusterPathsMap {
+			func(config *Config, inputs []MoveKeyInput, indexMap []int) {
+				pool.Go(func(ctx context.Context) error {
+					moveErrors, err := newSingleClusterLister(config).moveKeys(ctx, inputs)
+					if err != nil {
+						return err
+					}
+					for i, moveError := range moveErrors {
+						result[indexMap[i]] = moveError
+					}
+					return nil
+				})
+			}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
+		}
+		return result, pool.Wait(ctx)
 	}
-
-	err := pool.Wait(ctx)
-	return result, err
 }
 
 func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyInput) ([]*RenameKeysError, error) {
@@ -331,57 +317,53 @@ func (l *multiClusterLister) renameKeys(ctx context.Context, input []RenameKeyIn
 		IndexMap []int
 	}
 
-	clusterPathsMap := make(map[*Config]*renameKeyInputsWithIndices)
+	groupByInputs := func() (map[*Config]*renameKeyInputsWithIndices, error) {
+		clusterPathsMap := make(map[*Config]*renameKeyInputsWithIndices)
+		// 将所有的canTransfer不满足的key提前赋值
+		for i, input := range input {
+			if _, err := l.canTransfer(input.FromKey, input.ToKey); err != nil {
+				return nil, err
+			} else {
+				config, _ := l.config.forKey(input.FromKey)
 
-	// 将所有的canTransfer不满足的key提前赋值
-	for i, input := range input {
-		if _, err := l.canTransfer(input.FromKey, input.ToKey); err != nil {
-			result[i] = &RenameKeysError{
-				Code:    -1,
-				Error:   err.Error(),
-				FromKey: input.FromKey,
-				ToKey:   input.ToKey,
-			}
-		} else {
-			config, exists := l.config.forKey(input.FromKey)
-			if !exists {
-				return nil, ErrUndefinedConfig
-			}
-			// 都是canTransfer的, 不包含则创建
-			if e, contains := clusterPathsMap[config]; !contains {
-				e = &renameKeyInputsWithIndices{
-					Inputs:   make([]RenameKeyInput, 0, 1),
-					IndexMap: make([]int, 0, 1),
+				// 都是canTransfer的, 不包含则创建
+				e, contains := clusterPathsMap[config]
+				if !contains {
+					clusterPathsMap[config] = &renameKeyInputsWithIndices{
+						Inputs:   make([]RenameKeyInput, 0, 1),
+						IndexMap: make([]int, 0, 1),
+					}
+					e = clusterPathsMap[config]
 				}
-				clusterPathsMap[config] = e
+
+				// 将key添加到对应的集群中
+				e.IndexMap = append(e.IndexMap, i)
+				e.Inputs = append(e.Inputs, input)
 			}
-
-			e := clusterPathsMap[config]
-
-			// 将key添加到对应的集群中
-			e.IndexMap = append(e.IndexMap, i)
-			e.Inputs = append(e.Inputs, input)
 		}
+		return clusterPathsMap, nil
 	}
 
-	pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
-	for config, keysWithIndex := range clusterPathsMap {
-		func(config *Config, inputs []RenameKeyInput, indexMap []int) {
-			pool.Go(func(ctx context.Context) error {
-				renameErrors, err := newSingleClusterLister(config).renameKeys(ctx, inputs)
-				if err != nil {
-					return err
-				}
-				for i, renameError := range renameErrors {
-					result[indexMap[i]] = renameError
-				}
-				return nil
-			})
-		}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
+	if clusterPathsMap, err := groupByInputs(); err != nil {
+		return nil, err
+	} else {
+		pool := goroutine_pool.NewGoroutinePool(l.multiClustersConcurrency)
+		for config, keysWithIndex := range clusterPathsMap {
+			func(config *Config, inputs []RenameKeyInput, indexMap []int) {
+				pool.Go(func(ctx context.Context) error {
+					if renameErrors, err := newSingleClusterLister(config).renameKeys(ctx, inputs); err != nil {
+						return err
+					} else {
+						for i, renameError := range renameErrors {
+							result[indexMap[i]] = renameError
+						}
+						return nil
+					}
+				})
+			}(config, keysWithIndex.Inputs, keysWithIndex.IndexMap)
+		}
+		return result, pool.Wait(ctx)
 	}
-
-	err := pool.Wait(ctx)
-	return result, err
 }
 
 func (l *multiClusterLister) deleteKeysFromChannel(ctx context.Context, keysChan <-chan string, isForce bool, errorsChan chan<- DeleteKeysError) error {

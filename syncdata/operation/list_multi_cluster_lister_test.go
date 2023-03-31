@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -271,10 +272,94 @@ func Test_multiClusterLister_deleteKeys(t *testing.T) {
 		assert.Nil(t, e)
 	}
 
-	// 在次列举所有的key
+	// 再次列举所有的key应当为空key
 	items, err := lister.listPrefix(context.Background(), "c")
 	assert.NoError(t, err)
 	assert.Empty(t, items)
 
 	clearMultiClusterBuckets(t)
+}
+
+func Test_multiClusterLister_copyKeys(t *testing.T) {
+	t.Run("copy keys between same clusters", func(t *testing.T) {
+		clearMultiClusterBuckets(t)
+
+		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
+		sort.Strings(cluster1Keys)
+
+		uploader1 := newSingleClusterUploader(getConfig1())
+		for _, key := range cluster1Keys {
+			assert.NoError(t, uploader1.uploadData(nil, key))
+		}
+
+		// 开始复制
+		var copyInputs []CopyKeyInput
+		for _, key := range cluster1Keys {
+			copyInputs = append(copyInputs, CopyKeyInput{
+				FromKey: key,
+				ToKey:   key + "-copy",
+			})
+		}
+		lister := getMultiClusterListerForTest()
+		errs, err := lister.copyKeys(context.Background(), copyInputs)
+		assert.NoError(t, err)
+		assert.Equal(t, len(cluster1Keys), len(errs))
+		for _, e := range errs {
+			assert.Nil(t, e)
+		}
+
+		items, err := lister.listPrefix(context.Background(), "c1/")
+		assert.NoError(t, err)
+		assert.Equal(t, len(cluster1Keys)*2, len(items))
+	})
+	t.Run("copy keys between different clusters", func(t *testing.T) {
+		clearMultiClusterBuckets(t)
+		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
+		uploader1 := newSingleClusterUploader(getConfig1())
+		for _, key := range cluster1Keys {
+			assert.NoError(t, uploader1.uploadData(nil, key))
+		}
+
+		// 开始复制
+		var copyInputs []CopyKeyInput
+		for _, key := range cluster1Keys {
+			copyInputs = append(copyInputs, CopyKeyInput{
+				FromKey: key,
+				ToKey:   strings.Replace(key, "c1/", "c2/", 1),
+			})
+		}
+		lister := getMultiClusterListerForTest()
+		_, err := lister.copyKeys(context.Background(), copyInputs)
+		assert.Error(t, err)
+
+		items, err := lister.listPrefix(context.Background(), "c2/")
+		assert.NoError(t, err)
+		assert.Empty(t, items)
+	})
+	t.Run("copy keys between partial same clusters", func(t *testing.T) {
+		clearMultiClusterBuckets(t)
+		copyInputs := []CopyKeyInput{
+			{"c1/1", "c1/1-copy"},
+			{"c2/1", "c2/1-copy"},
+			{"c3/1", "c3/1-copy"},
+		}
+
+		uploader1 := newSingleClusterUploader(getConfig1())
+		for _, input := range copyInputs {
+			assert.NoError(t, uploader1.uploadData(nil, input.FromKey))
+		}
+
+		// 开始复制
+		lister := getMultiClusterListerForTest()
+		_, err := lister.copyKeys(context.Background(), copyInputs)
+		assert.Error(t, err)
+
+		// c1, c2 全都不应该成功
+		items, err := lister.listPrefix(context.Background(), "")
+		assert.NoError(t, err)
+		for _, input := range copyInputs {
+			assert.Contains(t, items, input.FromKey)
+			assert.NotContains(t, items, input.ToKey)
+		}
+	})
 }
