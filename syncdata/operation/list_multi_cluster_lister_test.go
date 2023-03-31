@@ -176,3 +176,105 @@ func Test_multiClusterLister_delete(t *testing.T) {
 	err = lister.delete("c1/3", true)
 	assert.NoError(t, err)
 }
+
+func Test_multiClusterLister_copy(t *testing.T) {
+	lister := getMultiClusterListerForTest()
+	// 无法根据key找到对应的cluster config
+	// 需要返回一个错误
+	err := lister.copy("c3/1", "c3/2")
+	assert.Equal(t, ErrUndefinedConfig, err)
+
+	// 能够根据key找到对应的cluster config
+	// 需要正确复制
+	uploader := newSingleClusterUploader(getConfig1())
+	assert.NoError(t, uploader.uploadData(nil, "c1/1"))
+	err = lister.copy("c1/1", "c1/2")
+	assert.NoError(t, err)
+
+	res, err := lister.listPrefix(context.Background(), "c1/")
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"c1/1", "c1/2"}, res)
+
+	assert.NoError(t, lister.delete("c1/1", true))
+	assert.NoError(t, lister.delete("c1/2", true))
+}
+
+func Test_multiCluster_moveTo(t *testing.T) {
+	lister := getMultiClusterListerForTest()
+	// 无法根据key找到对应的cluster config
+	// 需要返回一个错误
+	err := lister.moveTo("c3/1", "go-ipfs-sdk-3", "c3/2")
+	assert.Equal(t, ErrUndefinedConfig, err)
+
+	// 能够根据key找到对应的cluster config
+	// 需要正确移动
+	uploader := newSingleClusterUploader(getConfig1())
+	assert.NoError(t, uploader.uploadData(nil, "c1/1"))
+
+	err = lister.moveTo("c1/1", getConfig1().Bucket, "c1/2")
+	assert.NoError(t, err)
+
+	res, err := lister.listPrefix(context.Background(), "c1/")
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"c1/2"}, res)
+
+	assert.NoError(t, lister.delete("c1/2", true))
+}
+
+func Test_multiClusterLister_rename(t *testing.T) {
+	lister := getMultiClusterListerForTest()
+	// 无法根据key找到对应的cluster config
+	// 需要返回一个错误
+	err := lister.rename("c3/1", "c3/2")
+	assert.Equal(t, ErrUndefinedConfig, err)
+
+	// 能够根据key找到对应的cluster config
+	// 需要正确重命名
+	uploader := newSingleClusterUploader(getConfig1())
+	assert.NoError(t, uploader.uploadData(nil, "c1/1"))
+
+	err = lister.rename("c1/1", "c1/2")
+	assert.NoError(t, err)
+
+	res, err := lister.listPrefix(context.Background(), "c1/")
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"c1/2"}, res)
+
+	assert.NoError(t, lister.delete("c1/2", true))
+}
+
+func Test_multiClusterLister_deleteKeys(t *testing.T) {
+	cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
+	sort.Strings(cluster1Keys)
+
+	cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
+	sort.Strings(cluster2Keys)
+
+	allKeys := append(cluster1Keys, cluster2Keys...)
+	sort.Strings(allKeys)
+
+	uploader1 := newSingleClusterUploader(getConfig1())
+	for _, key := range cluster1Keys {
+		assert.NoError(t, uploader1.uploadData(nil, key))
+	}
+
+	uploader2 := newSingleClusterUploader(getConfig2())
+	for _, key := range cluster2Keys {
+		assert.NoError(t, uploader2.uploadData(nil, key))
+	}
+
+	lister := getMultiClusterListerForTest()
+	errs, err := lister.deleteKeys(context.Background(), allKeys, true)
+	assert.NoError(t, err)
+	assert.Equal(t, len(allKeys), len(errs))
+	for _, e := range errs {
+		assert.Nil(t, e)
+	}
+
+	// 在次列举所有的key
+	items, err := lister.listPrefix(context.Background(), "c")
+	assert.NoError(t, err)
+	assert.Empty(t, items)
+
+	clearMultiClusterBuckets(t)
+}
