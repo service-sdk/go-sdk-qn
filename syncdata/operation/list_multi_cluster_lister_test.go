@@ -363,3 +363,183 @@ func Test_multiClusterLister_copyKeys(t *testing.T) {
 		}
 	})
 }
+
+func Test_multiClusterLister_deleteKeysFromChannel(t *testing.T) {
+	cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
+	cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
+	allKeys := append(cluster1Keys, cluster2Keys...)
+
+	clearMultiClusterBuckets(t)
+
+	uploader1 := newSingleClusterUploader(getConfig1())
+	for _, key := range cluster1Keys {
+		assert.NoError(t, uploader1.uploadData(nil, key))
+	}
+
+	uploader2 := newSingleClusterUploader(getConfig2())
+	for _, key := range cluster2Keys {
+		assert.NoError(t, uploader2.uploadData(nil, key))
+	}
+
+	ch := make(chan string, 10)
+	go func() {
+		for _, key := range allKeys {
+			ch <- key
+		}
+		close(ch)
+	}()
+	lister := getMultiClusterListerForTest()
+
+	assert.NoError(t, lister.deleteKeysFromChannel(context.Background(), ch, true, func() chan<- DeleteKeysError {
+		errCh := make(chan DeleteKeysError, 10)
+		go func() {
+			t.Error(<-errCh)
+		}()
+		return errCh
+	}()))
+	// 再次列举所有的key应当为空key
+	items, err := lister.listPrefix(context.Background(), "c")
+	assert.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func Test_multiClusterLister_copyKeysFromChannel(t *testing.T) {
+	t.Run("copy keys between same clusters", func(t *testing.T) {
+		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
+		cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
+		allKeys := append(cluster1Keys, cluster2Keys...)
+
+		clearMultiClusterBuckets(t)
+
+		uploader1 := newSingleClusterUploader(getConfig1())
+		for _, key := range cluster1Keys {
+			assert.NoError(t, uploader1.uploadData(nil, key))
+		}
+
+		uploader2 := newSingleClusterUploader(getConfig2())
+		for _, key := range cluster2Keys {
+			assert.NoError(t, uploader2.uploadData(nil, key))
+		}
+
+		ch := make(chan CopyKeyInput, 10)
+		go func() {
+			defer close(ch)
+			for _, key := range allKeys {
+				ch <- CopyKeyInput{
+					FromKey: key,
+					ToKey:   key + "-copy",
+				}
+			}
+		}()
+		lister := getMultiClusterListerForTest()
+
+		assert.NoError(t, lister.copyKeysFromChannel(context.Background(), ch, func() chan<- CopyKeysError {
+			errCh := make(chan CopyKeysError, 10)
+			go func() {
+				t.Error(<-errCh)
+			}()
+			return errCh
+		}()))
+		// 再次列举所有的key应当全部复制成功
+		items, err := lister.listPrefix(context.Background(), "c")
+		assert.NoError(t, err)
+		assert.Equal(t, len(allKeys)*2, len(items))
+	})
+}
+
+func Test_multiClusterLister_moveKeysFromChannel(t *testing.T) {
+	t.Run("move keys between same clusters", func(t *testing.T) {
+		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
+		cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
+		allKeys := append(cluster1Keys, cluster2Keys...)
+
+		clearMultiClusterBuckets(t)
+
+		uploader1 := newSingleClusterUploader(getConfig1())
+		for _, key := range cluster1Keys {
+			assert.NoError(t, uploader1.uploadData(nil, key))
+		}
+
+		uploader2 := newSingleClusterUploader(getConfig2())
+		for _, key := range cluster2Keys {
+			assert.NoError(t, uploader2.uploadData(nil, key))
+		}
+
+		ch := make(chan MoveKeyInput, 10)
+		go func() {
+			defer close(ch)
+			for _, key := range allKeys {
+				ch <- MoveKeyInput{
+					FromToKey: FromToKey{
+						FromKey: key,
+						ToKey:   key + "-move",
+					},
+					ToBucket: getConfig1().Bucket,
+				}
+			}
+		}()
+		lister := getMultiClusterListerForTest()
+
+		assert.NoError(t, lister.moveKeysFromChannel(context.Background(), ch, func() chan<- MoveKeysError {
+			errCh := make(chan MoveKeysError, 10)
+			go func() {
+				t.Error(<-errCh)
+			}()
+			return errCh
+		}()))
+		// 再次列举所有的key应当全部移动成功
+		items, err := lister.listPrefix(context.Background(), "c")
+		assert.NoError(t, err)
+		assert.Equal(t, len(allKeys), len(items))
+		for _, item := range items {
+			assert.True(t, strings.HasSuffix(item, "-move"))
+		}
+	})
+}
+
+func Test_multiClusterLister_renameKeysFromChannel(t *testing.T) {
+	t.Run("rename keys between same clusters", func(t *testing.T) {
+		cluster1Keys := []string{"c1/1", "c1/2", "c1/3", "c1/4", "c1/5", "c1/6"}
+		cluster2Keys := []string{"c2/1", "c2/2", "c2/3", "c2/4", "c2/5", "c2/6"}
+		allKeys := append(cluster1Keys, cluster2Keys...)
+
+		clearMultiClusterBuckets(t)
+
+		uploader1 := newSingleClusterUploader(getConfig1())
+		for _, key := range cluster1Keys {
+			assert.NoError(t, uploader1.uploadData(nil, key))
+		}
+
+		uploader2 := newSingleClusterUploader(getConfig2())
+		for _, key := range cluster2Keys {
+			assert.NoError(t, uploader2.uploadData(nil, key))
+		}
+
+		ch := make(chan RenameKeyInput, 10)
+		go func() {
+			defer close(ch)
+			for _, key := range allKeys {
+				ch <- RenameKeyInput{
+					FromKey: key,
+					ToKey:   key + "-rename",
+				}
+			}
+		}()
+		lister := getMultiClusterListerForTest()
+
+		assert.NoError(t, lister.renameKeysFromChannel(context.Background(), ch, func() chan<- RenameKeysError {
+			errCh := make(chan RenameKeysError, 10)
+			go func() {
+				t.Error(<-errCh)
+			}()
+			return errCh
+		}()))
+		// 再次列举所有的key应当全部重命名成功
+		items, err := lister.listPrefix(context.Background(), "c")
+		assert.NoError(t, err)
+		assert.Equal(t, len(allKeys), len(items))
+		for _, item := range items {
+			assert.True(t, strings.HasSuffix(item, "-rename"))
+		}
+	})
+}
