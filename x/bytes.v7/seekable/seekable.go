@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/bytes.v7"
+	"github.com/service-sdk/go-sdk-qn/x/bytes.v7"
 )
 
 // ---------------------------------------------------

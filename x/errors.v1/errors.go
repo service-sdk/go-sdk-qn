@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/log.v7"
+	"github.com/service-sdk/go-sdk-qn/x/log.v7"
 )
 
 const prefix = " ==> "
@@ -179,7 +179,6 @@ func (r *ErrorInfo) LogMessage() string {
 }
 
 // deprecated. please use (*ErrorInfo).LogWarn
-//
 func (r *ErrorInfo) Warn() *ErrorInfo {
 	log.Std.Output("", log.Lwarn, 2, r.LogMessage())
 	return r

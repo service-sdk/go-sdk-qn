@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/xlog.v8"
+	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/errors.v1"
-	"github.com/qiniupd/qiniu-go-sdk/x/log.v7"
+	"github.com/service-sdk/go-sdk-qn/x/errors.v1"
+	"github.com/service-sdk/go-sdk-qn/x/log.v7"
 )
 
 // ---------------------------------------------------------------------------
@@ -317,7 +317,7 @@ func GetHijacker(w http.ResponseWriter) (hj http.Hijacker, ok bool) {
 	return
 }
 
-//强制断开请求连接
+// 强制断开请求连接
 func HijackClose(xl *xlog.Logger, w http.ResponseWriter) {
 	if xl == nil {
 		xl = xlog.NewDummy()

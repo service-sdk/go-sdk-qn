@@ -4,23 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
-
-	"github.com/qiniupd/qiniu-go-sdk/x/xlog.v8"
 
 	. "context"
 )
 
-var UserAgent string
-
 var (
 	ErrInvalidRequestURL = errors.New("invalid request url")
+	UserAgent            = ""
 )
 
 // --------------------------------------------------------------------
@@ -28,10 +25,6 @@ var (
 type Client struct {
 	*http.Client
 }
-
-var (
-	DefaultClient = Client{&http.Client{Transport: http.DefaultTransport, Timeout: 10 * time.Minute}}
-)
 
 // --------------------------------------------------------------------
 

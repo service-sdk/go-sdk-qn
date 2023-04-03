@@ -2,7 +2,7 @@ package kodocli
 
 import (
 	"bytes"
-	. "context"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"hash"
@@ -18,21 +18,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qiniupd/qiniu-go-sdk/x/httputil.v1"
-	"github.com/qiniupd/qiniu-go-sdk/x/rpc.v7"
-	"github.com/qiniupd/qiniu-go-sdk/x/xlog.v8"
+	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
+	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
 )
 
 // ----------------------------------------------------------
 
 const (
-	DontCheckCrc         uint32 = 0
-	CalcAndCheckCrc             = 1
-	formUploadRetryTimes        = 5
+	DontCheckCrc         = 0
+	CalcAndCheckCrc      = 1
+	formUploadRetryTimes = 5
 )
 
 // 上传的额外可选项
-//
 type PutExtra struct {
 	// 可选，用户自定义参数，必须以 "x:" 开头。若不以x:开头，则忽略。
 	Params map[string]string
@@ -52,7 +51,6 @@ type PutExtra struct {
 // ----------------------------------------------------------
 
 // 如果 uptoken 没有指定 ReturnBody，那么返回值是标准的 PutRet 结构
-//
 type PutRet struct {
 	Hash         string `json:"hash"`
 	PersistentId string `json:"persistentId"`
@@ -70,9 +68,8 @@ type PutRet struct {
 // key       是要上传的文件访问路径。比如："foo/bar.jpg"。注意我们建议 key 不要以 '/' 开头。另外，key 为空字符串是合法的。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 PutExtra 结构的描述。
-//
 func (p Uploader) PutFile(
-	ctx Context, ret interface{}, uptoken, key, localFile string, extra *PutExtra) (err error) {
+	ctx context.Context, ret interface{}, uptoken, key, localFile string, extra *PutExtra) (err error) {
 
 	return p.putFile(ctx, ret, uptoken, key, true, localFile, extra)
 }
@@ -86,15 +83,14 @@ func (p Uploader) PutFile(
 // uptoken   是由业务服务器颁发的上传凭证。
 // localFile 是要上传的文件的本地路径。
 // extra     是上传的一些可选项。详细见 PutExtra 结构的描述。
-//
 func (p Uploader) PutFileWithoutKey(
-	ctx Context, ret interface{}, uptoken, localFile string, extra *PutExtra) (err error) {
+	ctx context.Context, ret interface{}, uptoken, localFile string, extra *PutExtra) (err error) {
 
 	return p.putFile(ctx, ret, uptoken, "", false, localFile, extra)
 }
 
 func (p Uploader) putFile(
-	ctx Context, ret interface{}, uptoken string,
+	ctx context.Context, ret interface{}, uptoken string,
 	key string, hasKey bool, localFile string, extra *PutExtra) (err error) {
 
 	f, err := os.Open(localFile)
@@ -114,7 +110,7 @@ func (p Uploader) putFile(
 var defaultPutExtra PutExtra
 
 func (p Uploader) put(
-	ctx Context, ret interface{}, uptoken string,
+	ctx context.Context, ret interface{}, uptoken string,
 	key string, hasKey bool, dataReaderAt io.ReaderAt, size int64, extra *PutExtra, fileName string) (err error) {
 
 	if extra == nil {
@@ -211,7 +207,7 @@ lzRetry:
 	}
 	resp, err := p.Conn.Do(ctx, req)
 	if err != nil {
-		if err == Canceled {
+		if err == context.Canceled {
 			return
 		}
 		code := httputil.DetectCode(err)
@@ -340,7 +336,7 @@ func newCrc32Reader(boundary string, h hash.Hash32) *crc32Reader {
 }
 
 func (r *crc32Reader) Read(p []byte) (int, error) {
-	if r.flag == false {
+	if !r.flag {
 		crc32Sum := r.h.Sum32()
 		crc32Line := r.nlDashBoundaryNl + r.header + fmt.Sprintf("%010d", crc32Sum) //padding crc32 results to 10 digits
 		r.r = strings.NewReader(crc32Line)
@@ -364,14 +360,13 @@ func (r crc32Reader) length() (length int64) {
 // data    是文件内容的访问接口（io.Reader）。
 // fsize   是要上传的文件大小。
 // extra   是上传的一些可选项。详细见 PutExtra 结构的描述。
-//
 func (p Uploader) Put2(
-	ctx Context, ret interface{}, uptoken, key string, data io.ReaderAt, size int64, extra *PutExtra) error {
+	ctx context.Context, ret interface{}, uptoken, key string, data io.ReaderAt, size int64, extra *PutExtra) error {
 
 	return p.put2(ctx, ret, uptoken, key, data, size, extra)
 }
 
-func (p Uploader) put2(ctx Context, ret interface{}, uptoken, key string, data io.ReaderAt, size int64,
+func (p Uploader) put2(ctx context.Context, ret interface{}, uptoken, key string, data io.ReaderAt, size int64,
 	extra *PutExtra) error {
 
 	upHost := p.chooseUpHost(make(map[string]struct{}))

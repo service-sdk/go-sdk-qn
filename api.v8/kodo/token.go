@@ -8,8 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qiniupd/qiniu-go-sdk/api.v7/auth/qbox"
-	"github.com/qiniupd/qiniu-go-sdk/x/url.v7"
+	"github.com/service-sdk/go-sdk-qn/x/url.v7"
 )
 
 // ----------------------------------------------------------
@@ -17,7 +16,6 @@ import (
 // 根据空间(Bucket)的域名，以及文件的 key，获得 baseUrl。
 // 如果空间是 public 的，那么通过 baseUrl 可以直接下载文件内容。
 // 如果空间是 private 的，那么需要对 baseUrl 进行私有签名得到一个临时有效的 privateUrl 进行下载。
-//
 func MakeBaseUrl(domain, key string) (baseUrl string) {
 
 	return "http://" + domain + "/" + url.Escape(key)
@@ -46,7 +44,7 @@ func (p *Client) MakePrivateUrl(baseUrl string, policy *GetPolicy) (privateUrl s
 	}
 	baseUrl += strconv.FormatInt(deadline, 10)
 
-	token := qbox.Sign(p.mac, []byte(baseUrl))
+	token := p.mac.Sign([]byte(baseUrl))
 	return baseUrl + "&token=" + token
 }
 
@@ -91,7 +89,7 @@ func (p *Client) MakeUptoken(policy *PutPolicy) string {
 	}
 	rr.Expires += uint32(time.Now().Unix())
 	b, _ := json.Marshal(&rr)
-	return qbox.SignWithData(p.mac, b)
+	return p.mac.SignWithData(b)
 }
 
 func ParseUptoken(uptoken string) (policy PutPolicy, err error) {

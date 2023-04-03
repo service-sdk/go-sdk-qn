@@ -1,4 +1,4 @@
-package operation
+package goroutine_pool
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestGoroutinePool(t *testing.T) {
-	pool := newGoroutinePool(5)
+	pool := NewGoroutinePool(5)
 	arr := make([]uint64, 50)
 	for i := uint64(0); i < 50; i++ {
 		func(i uint64) {

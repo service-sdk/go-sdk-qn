@@ -2,7 +2,7 @@ package kodocli
 
 import (
 	"encoding/json"
-	digest "github.com/qiniupd/qiniu-go-sdk/api.v7/auth/qbox"
+	digest "github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
 )
 
 type FileType uint32
@@ -58,9 +58,5 @@ type AuthPolicy struct {
 
 func MakeAuthTokenString(key, secret string, auth *AuthPolicy) string {
 	b, _ := json.Marshal(auth)
-	mac := &digest.Mac{
-		AccessKey: key,
-		SecretKey: []byte(secret),
-	}
-	return mac.SignWithData(b)
+	return digest.NewMac(key, secret).SignWithData(b)
 }

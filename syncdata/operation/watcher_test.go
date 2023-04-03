@@ -1,7 +1,6 @@
 package operation
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,15 +9,15 @@ import (
 )
 
 func TestWatcher(t *testing.T) {
-	dirPath1, err := ioutil.TempDir("", "folder-1")
+	dirPath1, err := os.MkdirTemp("", "folder-1")
 	assert.NoError(t, err)
 	defer os.RemoveAll(dirPath1)
 
-	dirPath2, err := ioutil.TempDir("", "folder-2")
+	dirPath2, err := os.MkdirTemp("", "folder-2")
 	assert.NoError(t, err)
 	defer os.RemoveAll(dirPath2)
 
-	dirPath3, err := ioutil.TempDir("", "folder-3")
+	dirPath3, err := os.MkdirTemp("", "folder-3")
 	assert.NoError(t, err)
 	defer os.RemoveAll(dirPath3)
 
