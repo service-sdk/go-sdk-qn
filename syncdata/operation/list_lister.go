@@ -341,12 +341,17 @@ func (l *Lister) deleteDirectory(ctx context.Context, consumerCount int, dir str
 	for i := 0; i < consumerCount; i++ {
 		// deleter consumer
 		pool.Go(func(ctx context.Context) error {
-			defer close(deleteKeyErrorChan)
 			return l.deleteKeysFromChannel(ctx, keyChan, isForce, deleteKeyErrorChan)
 		})
 	}
 
+	// 等待生产者消费者结束
 	err = pool.Wait(ctx)
+
+	// 通知错误记录器结束
+	close(deleteKeyErrorChan)
+
+	// 等待错误记录完毕
 	wg.Wait()
 	if err != nil {
 		return nil, err
