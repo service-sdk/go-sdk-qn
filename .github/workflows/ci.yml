@@ -23,4 +23,6 @@ jobs:
           QINIU_TEST_IO_HOSTS: ${{ secrets.QINIU_TEST_IO_HOSTS }}
           QINIU_TEST_UC_HOSTS: ${{ secrets.QINIU_TEST_UC_HOSTS }}
           QINIU_TEST_BUCKET: ${{ secrets.QINIU_TEST_BUCKET }}
+          QINIU_TEST_DOMAIN: ${{ secrets.QINIU_TEST_DOMAIN }}
+          QINIU_KODO_TEST: "on"
         run: go test ./...
