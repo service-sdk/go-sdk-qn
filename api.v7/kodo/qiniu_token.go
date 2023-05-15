@@ -24,7 +24,7 @@ type GetPolicy struct {
 func (p *Client) MakePrivateUrl(baseUrl string, policy *GetPolicy) (privateUrl string) {
 	var expires int64
 	if policy == nil || policy.Expires == 0 {
-		expires = 3600
+		expires = 180
 	} else {
 		expires = int64(policy.Expires)
 	}

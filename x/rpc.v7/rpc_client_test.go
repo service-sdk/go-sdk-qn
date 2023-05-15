@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,8 +15,14 @@ import (
 // --------------------------------------------------------------------
 
 func TestNewRequest(t *testing.T) {
-
-	if runtime.Version() < "go1.8" {
+	currentVersion := runtime.Version()
+	// 判断version版本是否小于go1.8
+	currentVersionArr := strings.Split(currentVersion[2:], ".")
+	majorVersion, err := strconv.Atoi(currentVersionArr[0])
+	assert.NoError(t, err)
+	minorVersion, err := strconv.Atoi(currentVersionArr[1])
+	assert.NoError(t, err)
+	if majorVersion <= 1 && minorVersion < 8 {
 		req, err := http.NewRequest("GET", "-H\t abc.com \thttp://127.0.0.1/foo/bar", nil)
 		if err != nil {
 			t.Fatal("http.NewRequest failed")
