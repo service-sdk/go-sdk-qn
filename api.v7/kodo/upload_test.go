@@ -2,6 +2,7 @@ package kodo
 
 import (
 	"bytes"
+	"context"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
@@ -29,7 +30,7 @@ func TestGetPrivateUrl(t *testing.T) {
 	content := []byte("HelloWorld1")
 
 	_ = bucket.Put(
-		nil, nil,
+		context.Background(), nil,
 		key,
 		bytes.NewReader(content), int64(len(content)),
 		nil,
