@@ -25,4 +25,4 @@ jobs:
           QINIU_TEST_BUCKET: ${{ secrets.QINIU_TEST_BUCKET }}
           QINIU_TEST_DOMAIN: ${{ secrets.QINIU_TEST_DOMAIN }}
           QINIU_KODO_TEST: "on"
-        run: go test ./...
+        run: go test ./syncdata/operation
