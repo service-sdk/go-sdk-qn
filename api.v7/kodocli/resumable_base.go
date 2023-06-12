@@ -40,7 +40,10 @@ func newUptokenTransport(token string, transport http.RoundTripper) *uptokenTran
 
 func newUptokenClient(token string, transport http.RoundTripper) *http.Client {
 	t := newUptokenTransport(token, transport)
-	return &http.Client{Transport: t, Timeout: 10 * time.Minute}
+	return &http.Client{
+		Transport: t,
+		Timeout:   10 * time.Minute,
+	}
 }
 
 // ----------------------------------------------------------

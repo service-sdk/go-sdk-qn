@@ -10,6 +10,16 @@ import (
 	"github.com/pelletier/go-toml"
 )
 
+const (
+	DefaultConfigDialTimeoutMs = 1000           // 1s
+	DefaultConfigIoTimeoutMs   = 10 * 60 * 1000 // 10min
+	DefaultConfigUpTimeoutMs   = 10 * 60 * 1000 // 10min
+	DefaultConfigApiTimeoutMs  = 1000           // 1s
+	DefaultConfigUcTimeoutMs   = 1000           // 1s
+	DefaultConfigRsTimeoutMs   = 10000          // 1s
+	DefaultConfigRsfTimeoutMs  = 1000           // 1s
+)
+
 // SingleClusterConfig 单集群配置文件
 type SingleClusterConfig = Config
 
@@ -28,6 +38,7 @@ type Config struct {
 	RsfTimeoutMs  int `json:"rsf_timeout_ms" toml:"rsf_timeout_ms"`
 	IoTimeoutMs   int `json:"io_timeout_ms" toml:"io_timeout_ms"`
 	UcTimeoutMs   int `json:"uc_timeout_ms" toml:"uc_timeout_ms"`
+	ApiTimeoutMs  int `json:"api_timeout_ms" toml:"api_timeout_ms"`
 
 	Bucket           string `json:"bucket" toml:"bucket"`
 	Ak               string `json:"ak" toml:"ak"`

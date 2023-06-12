@@ -45,18 +45,8 @@ func newSingleClusterUploader(c *Config) *singleClusterUploader {
 		partSize:      part,
 		upConcurrency: c.UpConcurrency,
 		queryer:       queryer,
-		dialTimeout: time.Duration(func() int {
-			if c.DialTimeoutMs <= 0 {
-				return 1000 // 1s
-			}
-			return c.DialTimeoutMs
-		}()) * time.Millisecond,
-		upTimeout: time.Duration(func() int {
-			if c.UpTimeoutMs <= 0 {
-				return 10 * 60 * 1000 // 10 min
-			}
-			return c.UpTimeoutMs
-		}()) * time.Millisecond,
+		dialTimeout:   buildDurationByMs(c.DialTimeoutMs, DefaultConfigDialTimeoutMs),
+		upTimeout:     buildDurationByMs(c.UpTimeoutMs, DefaultConfigUpTimeoutMs),
 	}
 }
 

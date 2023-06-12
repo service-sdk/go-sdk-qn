@@ -11,19 +11,26 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type singleClusterLister struct {
-	bucket           string
-	rsHosts          []string
-	upHosts          []string
-	rsfHosts         []string
-	apiServerHosts   []string
+	bucket         string
+	rsHosts        []string
+	upHosts        []string
+	rsfHosts       []string
+	apiServerHosts []string
+
 	credentials      *qbox.Mac
 	queryer          IQueryer
 	batchSize        int
 	batchConcurrency int
 	recycleBin       string
+
+	rsTimeout  time.Duration
+	rsfTimeout time.Duration
+	upTimeout  time.Duration
+	apiTimeout time.Duration
 }
 
 func newSingleClusterLister(c *Config) *singleClusterLister {
@@ -36,11 +43,17 @@ func newSingleClusterLister(c *Config) *singleClusterLister {
 	}
 
 	lister := singleClusterLister{
-		bucket:           c.Bucket,
-		rsHosts:          dupStrings(c.RsHosts),
-		upHosts:          dupStrings(c.UpHosts),
-		rsfHosts:         dupStrings(c.RsfHosts),
-		apiServerHosts:   dupStrings(c.ApiServerHosts),
+		bucket:         c.Bucket,
+		rsHosts:        dupStrings(c.RsHosts),
+		upHosts:        dupStrings(c.UpHosts),
+		rsfHosts:       dupStrings(c.RsfHosts),
+		apiServerHosts: dupStrings(c.ApiServerHosts),
+
+		rsTimeout:  buildDurationByMs(c.RsTimeoutMs, DefaultConfigRsTimeoutMs),
+		rsfTimeout: buildDurationByMs(c.RsfTimeoutMs, DefaultConfigRsfTimeoutMs),
+		upTimeout:  buildDurationByMs(c.UpTimeoutMs, DefaultConfigUpTimeoutMs),
+		apiTimeout: buildDurationByMs(c.ApiTimeoutMs, DefaultConfigApiTimeoutMs),
+
 		credentials:      mac,
 		queryer:          queryer,
 		batchConcurrency: c.BatchConcurrency,
@@ -689,10 +702,16 @@ func (l *singleClusterLister) newBucket(host, rsfHost, apiHost string) kodo.Buck
 	cfg := kodo.Config{
 		AccessKey: l.credentials.GetAccessKey(),
 		SecretKey: l.credentials.GetSecretKey(),
-		RSHost:    host,
-		RSFHost:   rsfHost,
-		APIHost:   apiHost,
-		UpHosts:   l.upHosts,
+
+		RSHost:  host,
+		RSFHost: rsfHost,
+		APIHost: apiHost,
+		UpHosts: l.upHosts,
+
+		RsTimeout:  l.rsTimeout,
+		RsfTimeout: l.rsfTimeout,
+		ApiTimeout: l.apiTimeout,
+		UpTimeout:  l.upTimeout,
 	}
 	client := kodo.NewClient(&cfg)
 	return *kodo.NewBucket(client, l.bucket)

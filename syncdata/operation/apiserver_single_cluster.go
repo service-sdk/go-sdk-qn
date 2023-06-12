@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync/atomic"
+	"time"
 
 	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
 	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
@@ -14,6 +15,8 @@ type singleClusterApiServer struct {
 	apiServerHosts []string
 	credentials    *qbox.Mac
 	queryer        IQueryer
+	dialTimeout    time.Duration
+	apiTimeout     time.Duration
 }
 
 func newSingleClusterApiServer(c *Config) *singleClusterApiServer {
@@ -29,6 +32,8 @@ func newSingleClusterApiServer(c *Config) *singleClusterApiServer {
 		apiServerHosts: dupStrings(c.ApiServerHosts),
 		credentials:    mac,
 		queryer:        queryer,
+		dialTimeout:    buildDurationByMs(c.DialTimeoutMs, DefaultConfigDialTimeoutMs),
+		apiTimeout:     buildDurationByMs(c.ApiTimeoutMs, DefaultConfigApiTimeoutMs),
 	}
 	shuffleHosts(svr.apiServerHosts)
 	return &svr
@@ -88,7 +93,7 @@ func (svr *singleClusterApiServer) miscconfigs(ctx context.Context) (mcfgs *misc
 		apiServerHost := svr.nextApiServerHost(failedApiServerHosts)
 		url := fmt.Sprintf("%s/miscconfigs", apiServerHost)
 		var ret miscConfigs
-		if err := svr.newClient(apiServerHost).Call(ctx, &ret, http.MethodGet, url); err != nil {
+		if err := svr.newClient(apiServerHost).CallWithTimeout(ctx, &ret, http.MethodGet, url, svr.apiTimeout); err != nil {
 			failedApiServerHosts[apiServerHost] = struct{}{}
 			failHostName(apiServerHost)
 			continue
@@ -111,7 +116,7 @@ func (svr *singleClusterApiServer) scale(ctx context.Context, n, m uint64) (s *s
 		apiServerHost := svr.nextApiServerHost(failedApiServerHosts)
 		url := fmt.Sprintf("%s/tool/scale/n/%d/m/%d", apiServerHost, n, m)
 		var ret scale
-		if err := svr.newClient(apiServerHost).Call(ctx, &ret, http.MethodGet, url); err != nil {
+		if err := svr.newClient(apiServerHost).CallWithTimeout(ctx, &ret, http.MethodGet, url, svr.apiTimeout); err != nil {
 			failedApiServerHosts[apiServerHost] = struct{}{}
 			failHostName(apiServerHost)
 			continue
@@ -123,7 +128,7 @@ func (svr *singleClusterApiServer) scale(ctx context.Context, n, m uint64) (s *s
 	return
 }
 
-func (svr *singleClusterApiServer) newClient(host string) *kodo.Client {
+func (svr *singleClusterApiServer) newClient(host string) *kodo.QiniuClient {
 	cfg := kodo.Config{
 		AccessKey: svr.credentials.GetAccessKey(),
 		SecretKey: svr.credentials.GetSecretKey(),

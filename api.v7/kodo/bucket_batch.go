@@ -13,6 +13,7 @@ func (p Bucket) Batch(ctx context.Context, ret interface{}, op []string) (err er
 		"POST",
 		p.Conn.RSHost+"/batch",
 		map[string][]string{"op": op},
+		p.Conn.RsTimeout,
 	)
 }
 

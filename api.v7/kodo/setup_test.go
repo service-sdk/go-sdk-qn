@@ -11,7 +11,7 @@ var (
 	skipTest   = true
 	bucketName string
 	domain     string
-	client     *Client
+	client     *QiniuClient
 	bucket     *Bucket
 )
 

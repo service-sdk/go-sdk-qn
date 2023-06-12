@@ -6,11 +6,11 @@ import (
 	"errors"
 	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	. "context"
 )
@@ -54,18 +54,20 @@ func NewRequest(method, url1 string, body io.Reader) (req *http.Request, err err
 	return
 }
 
-func (r Client) DoRequest(ctx Context, method, url string) (resp *http.Response, err error) {
+func (r Client) DoRequest(ctx Context, method, url string, timeout time.Duration) (resp *http.Response, err error) {
 
 	req, err := NewRequest(method, url, nil)
 	if err != nil {
 		return
 	}
-	return r.Do(ctx, req)
+	return r.DoWithTimeout(ctx, req, timeout)
 }
 
 func (r Client) DoRequestWith(
 	ctx Context, method, url1 string,
-	bodyType string, body io.Reader, bodyLength int) (resp *http.Response, err error) {
+	bodyType string, body io.Reader, bodyLength int,
+	timeout time.Duration,
+) (resp *http.Response, err error) {
 
 	req, err := NewRequest(method, url1, body)
 	if err != nil {
@@ -73,12 +75,14 @@ func (r Client) DoRequestWith(
 	}
 	req.Header.Set("Content-Type", bodyType)
 	req.ContentLength = int64(bodyLength)
-	return r.Do(ctx, req)
+	return r.DoWithTimeout(ctx, req, timeout)
 }
 
 func (r Client) DoRequestWith64(
 	ctx Context, method, url1 string,
-	bodyType string, body io.Reader, bodyLength int64) (resp *http.Response, err error) {
+	bodyType string, body io.Reader, bodyLength int64,
+	timeout time.Duration,
+) (resp *http.Response, err error) {
 
 	req, err := NewRequest(method, url1, body)
 	if err != nil {
@@ -86,12 +90,13 @@ func (r Client) DoRequestWith64(
 	}
 	req.Header.Set("Content-Type", bodyType)
 	req.ContentLength = bodyLength
-	return r.Do(ctx, req)
+	return r.DoWithTimeout(ctx, req, timeout)
 }
 
 func (r Client) DoRequestWithForm(
-	ctx Context, method, url1 string, data map[string][]string) (resp *http.Response, err error) {
-
+	ctx Context, method, url1 string, data map[string][]string,
+	timeout time.Duration,
+) (resp *http.Response, err error) {
 	msg := url.Values(data).Encode()
 	if method == "GET" || method == "HEAD" || method == "DELETE" {
 		if strings.ContainsRune(url1, '?') {
@@ -99,27 +104,37 @@ func (r Client) DoRequestWithForm(
 		} else {
 			url1 += "?"
 		}
-		return r.DoRequest(ctx, method, url1+msg)
+		return r.DoRequest(ctx, method, url1+msg, timeout)
 	}
 	return r.DoRequestWith(
-		ctx, method, url1, "application/x-www-form-urlencoded", strings.NewReader(msg), len(msg))
+		ctx, method, url1, "application/x-www-form-urlencoded", strings.NewReader(msg), len(msg), timeout)
 }
 
 func (r Client) DoRequestWithJson(
-	ctx Context, method, url1 string, data interface{}) (resp *http.Response, err error) {
+	ctx Context, method, url1 string, data interface{}, timeout time.Duration) (resp *http.Response, err error) {
 
 	msg, err := json.Marshal(data)
 	if err != nil {
 		return
 	}
 	return r.DoRequestWith(
-		ctx, method, url1, "application/json", bytes.NewReader(msg), len(msg))
+		ctx, method, url1, "application/json", bytes.NewReader(msg), len(msg), timeout)
 }
 
 func (r Client) Do(ctx Context, req *http.Request) (resp *http.Response, err error) {
+	return r.DoWithTimeout(ctx, req, 0)
+}
+
+func (r Client) DoWithTimeout(ctx Context, req *http.Request, timeout time.Duration) (resp *http.Response, err error) {
 
 	if ctx == nil {
 		ctx = Background()
+	}
+
+	if timeout > 0 {
+		var cancel CancelFunc
+		ctx, cancel = WithTimeout(ctx, timeout)
+		defer cancel()
 	}
 
 	xl := xlog.FromContextSafe(ctx)
@@ -134,7 +149,7 @@ func (r Client) Do(ctx Context, req *http.Request) (resp *http.Response, err err
 		transport = http.DefaultTransport
 	}
 
-	// avoid cancel() is called before Do(req), but isn't accurate
+	// avoid cancel() is called before DoWithTimeout(req), but isn't accurate
 	select {
 	case <-ctx.Done():
 		err = ctx.Err()
@@ -156,7 +171,7 @@ func (r Client) Do(ctx Context, req *http.Request) (resp *http.Response, err err
 			if err == nil {
 				// 有可能r.Client.Do还没有调用到就进入这个逻辑
 				// 需要关掉这个http请求，否则会造成tcp连接泄露
-				resp.Body.Close()
+				_ = resp.Body.Close()
 			}
 			err = ctx.Err()
 		}
@@ -201,7 +216,7 @@ func (r *ErrorInfo) HttpCode() int {
 
 func parseError(e *ErrorInfo, r io.Reader) {
 
-	body, err1 := ioutil.ReadAll(r)
+	body, err1 := io.ReadAll(r)
 	if err1 != nil {
 		e.Err = err1.Error()
 		return
@@ -236,11 +251,13 @@ func ResponseError(resp *http.Response) (err error) {
 	return e
 }
 
-func CallRet(ctx Context, ret interface{}, resp *http.Response) (err error) {
-
+func CallRet(_ Context, ret interface{}, resp *http.Response) (err error) {
 	defer func() {
-		io.Copy(ioutil.Discard, resp.Body)
-		resp.Body.Close()
+		_, err := io.Copy(io.Discard, resp.Body)
+		if err != nil {
+			log.Println("copy error: ", err)
+		}
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode/100 == 2 {
@@ -258,9 +275,9 @@ func CallRet(ctx Context, ret interface{}, resp *http.Response) (err error) {
 }
 
 func (r Client) CallWithForm(
-	ctx Context, ret interface{}, method, url1 string, param map[string][]string) (err error) {
+	ctx Context, ret interface{}, method, url1 string, param map[string][]string, timeout time.Duration) (err error) {
 
-	resp, err := r.DoRequestWithForm(ctx, method, url1, param)
+	resp, err := r.DoRequestWithForm(ctx, method, url1, param, timeout)
 	if err != nil {
 		log.Println("error is ", err)
 		return err
@@ -271,18 +288,27 @@ func (r Client) CallWithForm(
 
 func (r Client) CallWithJson(
 	ctx Context, ret interface{}, method, url1 string, param interface{}) (err error) {
+	return r.CallWithJsonWithTimeout(ctx, ret, method, url1, param, 0)
+}
 
-	resp, err := r.DoRequestWithJson(ctx, method, url1, param)
+func (r Client) CallWithJsonWithTimeout(
+	ctx Context, ret interface{}, method, url1 string, param interface{}, timeout time.Duration) (err error) {
+
+	resp, err := r.DoRequestWithJson(ctx, method, url1, param, timeout)
 	if err != nil {
 		return err
 	}
 	return CallRet(ctx, ret, resp)
 }
-
 func (r Client) CallWith(
 	ctx Context, ret interface{}, method, url1, bodyType string, body io.Reader, bodyLength int) (err error) {
+	return r.CallWithWithTimeout(ctx, ret, method, url1, bodyType, body, bodyLength, 0)
+}
 
-	resp, err := r.DoRequestWith(ctx, method, url1, bodyType, body, bodyLength)
+func (r Client) CallWithWithTimeout(
+	ctx Context, ret interface{}, method, url1, bodyType string, body io.Reader, bodyLength int, timeout time.Duration) (err error) {
+
+	resp, err := r.DoRequestWith(ctx, method, url1, bodyType, body, bodyLength, timeout)
 	if err != nil {
 		return err
 	}
@@ -290,9 +316,9 @@ func (r Client) CallWith(
 }
 
 func (r Client) CallWith64(
-	ctx Context, ret interface{}, method, url1, bodyType string, body io.Reader, bodyLength int64) (err error) {
+	ctx Context, ret interface{}, method, url1, bodyType string, body io.Reader, bodyLength int64, timeout time.Duration) (err error) {
 
-	resp, err := r.DoRequestWith64(ctx, method, url1, bodyType, body, bodyLength)
+	resp, err := r.DoRequestWith64(ctx, method, url1, bodyType, body, bodyLength, timeout)
 	if err != nil {
 		return err
 	}
@@ -301,8 +327,13 @@ func (r Client) CallWith64(
 
 func (r Client) Call(
 	ctx Context, ret interface{}, method, url1 string) (err error) {
+	return r.CallWithTimeout(ctx, ret, method, url1, 0)
+}
 
-	resp, err := r.DoRequestWith(ctx, method, url1, "application/x-www-form-urlencoded", nil, 0)
+func (r Client) CallWithTimeout(
+	ctx Context, ret interface{}, method, url1 string, timeout time.Duration) (err error) {
+
+	resp, err := r.DoRequestWith(ctx, method, url1, "application/x-www-form-urlencoded", nil, 0, timeout)
 	if err != nil {
 		return err
 	}

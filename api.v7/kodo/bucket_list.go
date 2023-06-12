@@ -20,7 +20,7 @@ func (p Bucket) List(
 		Items    []ListItem `json:"items"`
 		Prefixes []string   `json:"commonPrefixes"`
 	}
-	err = p.Conn.Call(ctx, &listRet, "POST", listUrl)
+	err = p.Conn.CallWithTimeout(ctx, &listRet, "POST", listUrl, p.Conn.RsfTimeout)
 	if err != nil {
 		return
 	}

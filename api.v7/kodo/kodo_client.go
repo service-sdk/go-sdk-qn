@@ -2,7 +2,7 @@ package kodo
 
 import (
 	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
-	"net/http"
+	"time"
 )
 import "github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 
@@ -15,25 +15,31 @@ type Config struct {
 	Scheme    string
 	IoHost    string
 	UpHosts   []string
-	Transport http.RoundTripper
+
+	DialTimeout time.Duration
+	RsTimeout   time.Duration
+	RsfTimeout  time.Duration
+	ApiTimeout  time.Duration
+	IoTimeout   time.Duration
+	UpTimeout   time.Duration
 }
 
-type Client struct {
+type QiniuClient struct {
 	rpc.Client
 	Config
 	mac     *qbox.Mac
 	appName string
 }
 
-func NewClient(cfg *Config) *Client {
-	p := new(Client)
+func NewClient(cfg *Config) *QiniuClient {
+	p := new(QiniuClient)
 	if cfg != nil {
 		p.Config = *cfg
 	}
 
 	mac := qbox.NewMac(p.AccessKey, p.SecretKey)
 	p.Client = rpc.Client{
-		Client: qbox.NewClient(mac, p.Transport),
+		Client: qbox.NewClient(mac, p.DialTimeout, 0),
 	}
 	p.mac = mac
 

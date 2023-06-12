@@ -43,18 +43,8 @@ func newSingleClusterDownloader(c *Config) *singleClusterDownloader {
 		ioHosts:     dupStrings(c.IoHosts),
 		credentials: mac,
 		queryer:     queryer,
-		dialTimeout: time.Duration(func() int {
-			if c.DialTimeoutMs <= 0 {
-				return 1000 // 1s
-			}
-			return c.DialTimeoutMs
-		}()) * time.Millisecond,
-		ioTimeout: time.Duration(func() int {
-			if c.IoTimeoutMs <= 0 {
-				return 10 * 60 * 1000 // 10m
-			}
-			return c.IoTimeoutMs
-		}()) * time.Millisecond,
+		dialTimeout: buildDurationByMs(c.DialTimeoutMs, DefaultConfigDialTimeoutMs),
+		ioTimeout:   buildDurationByMs(c.IoTimeoutMs, DefaultConfigIoTimeoutMs),
 	}
 	shuffleHosts(downloader.ioHosts)
 	return &downloader

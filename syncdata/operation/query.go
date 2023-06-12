@@ -76,21 +76,11 @@ func init() {
 // NewQueryer 根据配置创建域名查询器
 func NewQueryer(c *Config) IQueryer {
 	q := Queryer{
-		ak:      c.Ak,
-		bucket:  c.Bucket,
-		ucHosts: dupStrings(c.UcHosts),
-		dialTimeout: time.Duration(func() int {
-			if c.DialTimeoutMs <= 0 {
-				return 500 // 默认值500ms
-			}
-			return c.DialTimeoutMs
-		}()) * time.Millisecond,
-		ucTimeout: time.Duration(func() int {
-			if c.UcTimeoutMs <= 0 {
-				return 1000 // 默认值1s
-			}
-			return c.UcTimeoutMs
-		}()) * time.Millisecond,
+		ak:          c.Ak,
+		bucket:      c.Bucket,
+		ucHosts:     dupStrings(c.UcHosts),
+		dialTimeout: buildDurationByMs(c.DialTimeoutMs, DefaultConfigDialTimeoutMs),
+		ucTimeout:   buildDurationByMs(c.UcTimeoutMs, DefaultConfigUcTimeoutMs),
 	}
 	shuffleHosts(q.ucHosts)
 	return &q

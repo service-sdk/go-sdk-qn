@@ -32,7 +32,7 @@ const (
 	formUploadRetryTimes = 5
 )
 
-// 上传的额外可选项
+// PutExtra 上传的额外可选项
 type PutExtra struct {
 	// 可选，用户自定义参数，必须以 "x:" 开头。若不以x:开头，则忽略。
 	Params map[string]string
@@ -51,7 +51,7 @@ type PutExtra struct {
 
 // ----------------------------------------------------------
 
-// 如果 uptoken 没有指定 ReturnBody，那么返回值是标准的 PutRet 结构
+// PutRet 如果 uptoken 没有指定 ReturnBody，那么返回值是标准的 PutRet 结构
 type PutRet struct {
 	Hash         string `json:"hash"`
 	PersistentId string `json:"persistentId"`
@@ -60,7 +60,7 @@ type PutRet struct {
 
 // ----------------------------------------------------------
 
-// 上传一个文件。
+// PutFile 上传一个文件。
 // 和 Put 不同的只是一个通过提供文件路径来访问文件内容，一个通过 io.Reader 来访问。
 //
 // ctx       是请求的上下文。
@@ -75,7 +75,7 @@ func (p Uploader) PutFile(
 	return p.putFile(ctx, ret, uptoken, key, true, localFile, extra)
 }
 
-// 上传一个文件。文件的访问路径（key）自动生成。
+// PutFileWithoutKey 上传一个文件。文件的访问路径（key）自动生成。
 // 如果 uptoken 中设置了 SaveKey，那么按 SaveKey 要求的规则生成 key，否则自动以文件的 hash 做 key。
 // 和 RputWithoutKey 不同的只是一个通过提供文件路径来访问文件内容，一个通过 io.Reader 来访问。
 //
@@ -383,7 +383,7 @@ func (r crc32Reader) length() (length int64) {
 
 // ----------------------------------------------------------
 
-// 上传一个文件,普通上传。
+// Put2 上传一个文件,普通上传。
 //
 // ctx     是请求的上下文。
 // ret     是上传成功后返回的数据。如果 uptoken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
