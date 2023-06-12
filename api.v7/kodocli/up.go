@@ -5,8 +5,6 @@ import (
 	digest "github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
 )
 
-type FileType uint32
-
 const (
 	TypeNormal = iota
 	TypeLine

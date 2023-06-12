@@ -4,14 +4,13 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 	"io"
 	"net/http"
 	"os"
 	"path"
 	"testing"
 	"time"
-
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 )
 
 var uploader Uploader
@@ -44,7 +43,7 @@ func TestPartsUpload(t *testing.T) {
 		return
 	}
 
-	policy := kodo.PutPolicy{
+	policy := PutPolicy{
 		Scope: bucket,
 	}
 	cli := kodo.NewClient(&kodo.Config{AccessKey: ak, SecretKey: sk})

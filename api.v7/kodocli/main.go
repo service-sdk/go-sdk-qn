@@ -5,10 +5,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/service-sdk/go-sdk-qn/api.v7/common"
 	"github.com/service-sdk/go-sdk-qn/api.v7/conf"
 	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 	"github.com/service-sdk/go-sdk-qn/x/url.v7"
 )
+
+type FileType = common.FileType
+type PutPolicy = common.PutPolicy
+
+var ParseUpToken = common.ParseUpToken
 
 // ----------------------------------------------------------
 
@@ -82,11 +88,12 @@ func NewUploader(zone int, cfg *UploadConfig) (p Uploader) {
 
 	p.UseBuffer = uc.UseBuffer
 	p.UpHosts = uc.UpHosts
+	dialer := net.Dialer{
+		Timeout: uc.DialTimeout,
+	}
 	p.Conn.Client = &http.Client{
 		Transport: &http.Transport{
-			DialContext: net.Dialer{
-				Timeout: uc.DialTimeout,
-			}.DialContext,
+			DialContext: dialer.DialContext,
 		},
 		Timeout: uc.UpTimeout,
 	}

@@ -1,14 +1,12 @@
 package kodo
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"errors"
+	"github.com/service-sdk/go-sdk-qn/api.v7/common"
+	"github.com/service-sdk/go-sdk-qn/x/url.v7"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/service-sdk/go-sdk-qn/x/url.v7"
 )
 
 // MakeBaseUrl 根据空间(Bucket)的域名，以及文件的 key，获得 baseUrl。
@@ -44,7 +42,7 @@ func (p *Client) MakePrivateUrl(baseUrl string, policy *GetPolicy) (privateUrl s
 }
 
 // MakeUpToken 根据给定的上传策略构造一个上传凭证
-func (p *Client) MakeUpToken(policy *PutPolicy) string {
+func (p *Client) MakeUpToken(policy *common.PutPolicy) string {
 	if policy.Deadline == 0 {
 		// 若未设置过期时间，则默认设置为 3600 秒之后失效
 		return p.MakeUpTokenWithExpires(policy, 3600)
@@ -56,25 +54,10 @@ func (p *Client) MakeUpToken(policy *PutPolicy) string {
 
 // MakeUpTokenWithExpires 根据给定的上传策略和有效时间构造一个上传凭证，
 // 有效时间单位为秒，将与上传策略中的过期时间叠加。
-func (p *Client) MakeUpTokenWithExpires(policy *PutPolicy, expires uint32) string {
+func (p *Client) MakeUpTokenWithExpires(policy *common.PutPolicy, expires uint32) string {
 	// 解引用会复制一份 policy 的副本，避免修改原来的 policy
 	rr := *policy
 	rr.Deadline += expires + uint32(time.Now().Unix())
 	b, _ := json.Marshal(rr)
 	return p.mac.SignWithData(b)
-}
-
-func ParseUpToken(uptoken string) (policy PutPolicy, err error) {
-	ps := strings.Split(uptoken, ":")
-	if len(ps) != 3 {
-		err = errors.New("invalid uptoken")
-		return
-	}
-
-	pb, err := base64.URLEncoding.DecodeString(ps[2])
-	if err != nil {
-		return
-	}
-	err = json.Unmarshal(pb, &policy)
-	return
 }
