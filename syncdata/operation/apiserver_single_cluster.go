@@ -13,13 +13,13 @@ import (
 type singleClusterApiServer struct {
 	apiServerHosts []string
 	credentials    *qbox.Mac
-	queryer        *Queryer
+	queryer        IQueryer
 }
 
 func newSingleClusterApiServer(c *Config) *singleClusterApiServer {
 	mac := qbox.NewMac(c.Ak, c.Sk)
 
-	var queryer *Queryer = nil
+	var queryer IQueryer = nil
 
 	if len(c.UcHosts) > 0 {
 		queryer = NewQueryer(c)

@@ -20,7 +20,7 @@ type singleClusterLister struct {
 	rsfHosts         []string
 	apiServerHosts   []string
 	credentials      *qbox.Mac
-	queryer          *Queryer
+	queryer          IQueryer
 	batchSize        int
 	batchConcurrency int
 	recycleBin       string
@@ -29,7 +29,7 @@ type singleClusterLister struct {
 func newSingleClusterLister(c *Config) *singleClusterLister {
 	mac := qbox.NewMac(c.Ak, c.Sk)
 
-	var queryer *Queryer = nil
+	var queryer IQueryer = nil
 
 	if len(c.UcHosts) > 0 {
 		queryer = NewQueryer(c)

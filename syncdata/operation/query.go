@@ -20,24 +20,6 @@ import (
 	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
-var queryClient = func() *http.Client {
-	dialer := net.Dialer{
-		Timeout:   500 * time.Millisecond,
-		KeepAlive: 30 * time.Second,
-	}
-	return &http.Client{
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           dialer.DialContext,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-		Timeout: 1 * time.Second,
-	}
-}()
-
 var (
 	cacheMap         sync.Map
 	cacheUpdaterLock sync.Mutex
@@ -45,14 +27,25 @@ var (
 	cacheDirectory          = configdir.LocalCache("qiniu", "go-sdk")
 )
 
-type (
-	// Queryer 域名查询器
-	Queryer struct {
-		ak      string
-		bucket  string
-		ucHosts []string
-	}
+// Queryer 域名查询器
+type Queryer struct {
+	ak          string
+	bucket      string
+	ucHosts     []string
+	dialTimeout time.Duration
+	ucTimeout   time.Duration
+	client      *http.Client
+}
 
+type IQueryer interface {
+	QueryUpHosts(https bool) (urls []string)
+	QueryRsHosts(https bool) (urls []string)
+	QueryRsfHosts(https bool) (urls []string)
+	QueryApiServerHosts(https bool) (urls []string)
+	QueryIoHosts(https bool) (urls []string)
+}
+
+type (
 	cache struct {
 		CachedHosts    cachedHosts `json:"hosts"`
 		CacheExpiredAt time.Time   `json:"expired_at"`
@@ -77,18 +70,52 @@ type (
 )
 
 func init() {
-	loadQueryersCache()
+	_ = loadQueryersCache()
 }
 
 // NewQueryer 根据配置创建域名查询器
-func NewQueryer(c *Config) *Queryer {
-	queryer := Queryer{
+func NewQueryer(c *Config) IQueryer {
+	q := Queryer{
 		ak:      c.Ak,
 		bucket:  c.Bucket,
 		ucHosts: dupStrings(c.UcHosts),
+		dialTimeout: time.Duration(func() int {
+			if c.DialTimeoutMs <= 0 {
+				return 500 // 默认值500ms
+			}
+			return c.DialTimeoutMs
+		}()) * time.Millisecond,
+		ucTimeout: time.Duration(func() int {
+			if c.UcTimeoutMs <= 0 {
+				return 1000 // 默认值1s
+			}
+			return c.UcTimeoutMs
+		}()) * time.Millisecond,
 	}
-	shuffleHosts(queryer.ucHosts)
-	return &queryer
+	shuffleHosts(q.ucHosts)
+	return &q
+}
+
+func (queryer *Queryer) getQueryClient() *http.Client {
+	if queryer.client != nil {
+		return queryer.client
+	}
+	dialer := net.Dialer{
+		Timeout:   queryer.dialTimeout,
+		KeepAlive: 30 * time.Second,
+	}
+	queryer.client = &http.Client{
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+		Timeout: queryer.ucTimeout,
+	}
+	return queryer.client
 }
 
 // QueryUpHosts 查询 UP 服务器 URL
@@ -164,7 +191,7 @@ func (queryer *Queryer) query() (*cache, error) {
 					return nil, err
 				} else {
 					queryer.setCache(c)
-					saveQueryersCache()
+					_ = saveQueryersCache()
 					return c, nil
 				}
 			} else {
@@ -183,6 +210,8 @@ func (queryer *Queryer) mustQuery() (c *cache, err error) {
 	var req *http.Request
 	var resp *http.Response
 
+	client := queryer.getQueryClient()
+
 	query := make(url.Values, 2)
 	query.Set("ak", queryer.ak)
 	query.Set("bucket", queryer.bucket)
@@ -191,13 +220,13 @@ func (queryer *Queryer) mustQuery() (c *cache, err error) {
 
 	for i := 0; i < 10; i++ {
 		ucHost := queryer.nextUcHost(failedUcHosts)
-		url := fmt.Sprintf("%s/v4/query?%s", ucHost, query.Encode())
-		req, err = http.NewRequest(http.MethodGet, url, http.NoBody)
+		queryUrl := fmt.Sprintf("%s/v4/query?%s", ucHost, query.Encode())
+		req, err = http.NewRequest(http.MethodGet, queryUrl, http.NoBody)
 		if err != nil {
 			continue
 		}
 		req.Header.Set("User-Agent", rpc.UserAgent)
-		resp, err = queryClient.Do(req)
+		resp, err = client.Do(req)
 		if err != nil {
 			failedUcHosts[ucHost] = struct{}{}
 			failHostName(ucHost)
@@ -250,7 +279,7 @@ func (queryer *Queryer) asyncRefresh() {
 		if c == nil || c.CacheExpiredAt.Before(time.Now()) {
 			if c, err = queryer.mustQuery(); err == nil {
 				queryer.setCache(c)
-				saveQueryersCache()
+				_ = saveQueryersCache()
 			}
 		}
 	}()
@@ -297,7 +326,7 @@ func (queryer *Queryer) nextUcHost(failedHosts map[string]struct{}) string {
 	}
 }
 
-// 设置查询结果缓存目录
+// SetCacheDirectoryAndLoad 设置查询结果缓存目录
 func SetCacheDirectoryAndLoad(path string) error {
 	cacheDirectory = path
 	cacheMap.Range(func(key, _ interface{}) bool {

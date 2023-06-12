@@ -21,7 +21,7 @@ type singleClusterUploader struct {
 	credentials   *qbox.Mac
 	partSize      int64
 	upConcurrency int
-	queryer       *Queryer
+	queryer       IQueryer
 }
 
 func newSingleClusterUploader(c *Config) *singleClusterUploader {
@@ -30,7 +30,7 @@ func newSingleClusterUploader(c *Config) *singleClusterUploader {
 	if part < 4*1024*1024 {
 		part = 4 * 1024 * 1024
 	}
-	var queryer *Queryer = nil
+	var queryer IQueryer = nil
 
 	if len(c.UcHosts) > 0 {
 		queryer = NewQueryer(c)

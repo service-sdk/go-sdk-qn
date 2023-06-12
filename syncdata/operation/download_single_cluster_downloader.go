@@ -21,13 +21,13 @@ type singleClusterDownloader struct {
 	bucket      string
 	ioHosts     []string
 	credentials *qbox.Mac
-	queryer     *Queryer
+	queryer     IQueryer
 }
 
 func newSingleClusterDownloader(c *Config) *singleClusterDownloader {
 	mac := qbox.NewMac(c.Ak, c.Sk)
 
-	var queryer *Queryer = nil
+	var queryer IQueryer = nil
 
 	if len(c.UcHosts) > 0 {
 		queryer = NewQueryer(c)
@@ -188,6 +188,7 @@ func (d *singleClusterDownloader) downloadRawInner(key string, headers http.Head
 	host := d.nextHost(failedIoHosts)
 	url := fmt.Sprintf("%s/getfile/%s/%s/%s", host, d.credentials.GetAccessKey(), d.bucket, key)
 	req, err := http.NewRequest("GET", url, nil)
+
 	if err != nil {
 		failedIoHosts[host] = struct{}{}
 		failHostName(host)

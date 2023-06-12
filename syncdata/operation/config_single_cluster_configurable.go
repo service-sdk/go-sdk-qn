@@ -15,25 +15,32 @@ type SingleClusterConfig = Config
 
 // Config 配置文件
 type Config struct {
-	UpHosts          []string `json:"up_hosts" toml:"up_hosts"`
-	RsHosts          []string `json:"rs_hosts" toml:"rs_hosts"`
-	RsfHosts         []string `json:"rsf_hosts" toml:"rsf_hosts"`
-	ApiServerHosts   []string `json:"api_server_hosts" toml:"api_server_hosts"`
-	Bucket           string   `json:"bucket" toml:"bucket"`
-	Ak               string   `json:"ak" toml:"ak"`
-	Sk               string   `json:"sk" toml:"sk"`
-	PartSize         int64    `json:"part" toml:"part"`
-	Addr             string   `json:"addr" toml:"addr"`
-	Delete           bool     `json:"delete" toml:"delete"`
-	UpConcurrency    int      `json:"up_concurrency" toml:"up_concurrency"`
-	BatchConcurrency int      `json:"batch_concurrency" toml:"batch_concurrency"`
-	BatchSize        int      `json:"batch_size" toml:"batch_size"`
+	UpHosts        []string `json:"up_hosts" toml:"up_hosts"`
+	RsHosts        []string `json:"rs_hosts" toml:"rs_hosts"`
+	RsfHosts       []string `json:"rsf_hosts" toml:"rsf_hosts"`
+	ApiServerHosts []string `json:"api_server_hosts" toml:"api_server_hosts"`
+	IoHosts        []string `json:"io_hosts" toml:"io_hosts"`
+	UcHosts        []string `json:"uc_hosts" toml:"uc_hosts"`
+
+	DialTimeoutMs int `json:"dial_timeout_ms" toml:"dial_timeout_ms"`
+	UpTimeoutMs   int `json:"up_timeout_ms" toml:"up_timeout_ms"`
+	RsTimeoutMs   int `json:"rs_timeout_ms" toml:"rs_timeout_ms"`
+	RsfTimeoutMs  int `json:"rsf_timeout_ms" toml:"rsf_timeout_ms"`
+	IoTimeoutMs   int `json:"io_timeout_ms" toml:"io_timeout_ms"`
+	UcTimeoutMs   int `json:"uc_timeout_ms" toml:"uc_timeout_ms"`
+
+	Bucket           string `json:"bucket" toml:"bucket"`
+	Ak               string `json:"ak" toml:"ak"`
+	Sk               string `json:"sk" toml:"sk"`
+	PartSize         int64  `json:"part" toml:"part"`
+	Addr             string `json:"addr" toml:"addr"`
+	Delete           bool   `json:"delete" toml:"delete"`
+	UpConcurrency    int    `json:"up_concurrency" toml:"up_concurrency"`
+	BatchConcurrency int    `json:"batch_concurrency" toml:"batch_concurrency"`
+	BatchSize        int    `json:"batch_size" toml:"batch_size"`
 
 	DownPath string `json:"down_path" toml:"down_path"`
 	Sim      bool   `json:"sim" toml:"sim"`
-
-	IoHosts []string `json:"io_hosts" toml:"io_hosts"`
-	UcHosts []string `json:"uc_hosts" toml:"uc_hosts"`
 
 	RecycleBin string `json:"recycle_bin" toml:"recycle_bin"`
 
