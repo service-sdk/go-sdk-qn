@@ -5,13 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 	"io"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
-	"github.com/service-sdk/go-sdk-qn/api.v8/kodo"
 	q "github.com/service-sdk/go-sdk-qn/api.v8/kodocli"
 )
 
@@ -60,11 +60,12 @@ func newSingleClusterUploader(c *Config) *singleClusterUploader {
 	}
 }
 
-func (p *singleClusterUploader) makeUptoken(policy *kodo.PutPolicy) string {
+func (p *singleClusterUploader) makeUptoken(policy *kodo.PutPolicy, expires int) string {
 	var rr = *policy
-	if rr.Expires == 0 {
-		rr.Expires = 3600 + uint32(time.Now().Unix())
+	if expires <= 0 {
+		expires = 3600
 	}
+	rr.Deadline = uint32(time.Now().Unix()) + uint32(expires)
 	b, _ := json.Marshal(&rr)
 	return p.credentials.SignWithData(b)
 }
@@ -75,12 +76,8 @@ func (p *singleClusterUploader) uploadData(data []byte, key string) (err error) 
 		elog.Info("up time ", key, time.Now().Sub(t))
 	}()
 	key = strings.TrimPrefix(key, "/")
-	policy := kodo.PutPolicy{
-		Scope:   p.bucket + ":" + key,
-		Expires: 3600*24 + uint32(time.Now().Unix()),
-	}
-
-	upToken := p.makeUptoken(&policy)
+	policy := kodo.PutPolicy{Scope: p.bucket + ":" + key}
+	upToken := p.makeUptoken(&policy, 3600*24)
 
 	upHosts := p.upHosts
 	if p.queryer != nil {
@@ -113,11 +110,10 @@ func (p *singleClusterUploader) uploadDataReader(data io.ReaderAt, size int, key
 	}()
 	key = strings.TrimPrefix(key, "/")
 	policy := kodo.PutPolicy{
-		Scope:   p.bucket + ":" + key,
-		Expires: 3600*24 + uint32(time.Now().Unix()),
+		Scope: p.bucket + ":" + key,
 	}
 
-	upToken := p.makeUptoken(&policy)
+	upToken := p.makeUptoken(&policy, 3600*24)
 
 	upHosts := p.upHosts
 	if p.queryer != nil {
@@ -151,10 +147,9 @@ func (p *singleClusterUploader) upload(file string, key string) (err error) {
 	}()
 	key = strings.TrimPrefix(key, "/")
 	policy := kodo.PutPolicy{
-		Scope:   p.bucket + ":" + key,
-		Expires: 3600*24 + uint32(time.Now().Unix()),
+		Scope: p.bucket + ":" + key,
 	}
-	upToken := p.makeUptoken(&policy)
+	upToken := p.makeUptoken(&policy, 3600*24)
 
 	f, err := os.Open(file)
 	if err != nil {
@@ -215,10 +210,9 @@ func (p *singleClusterUploader) uploadReader(reader io.Reader, key string) (err 
 	}()
 	key = strings.TrimPrefix(key, "/")
 	policy := kodo.PutPolicy{
-		Scope:   p.bucket + ":" + key,
-		Expires: 3600*24 + uint32(time.Now().Unix()),
+		Scope: p.bucket + ":" + key,
 	}
-	upToken := p.makeUptoken(&policy)
+	upToken := p.makeUptoken(&policy, 3600*24)
 
 	upHosts := p.upHosts
 	if p.queryer != nil {

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -108,6 +109,37 @@ func (p Uploader) putFile(
 }
 
 var defaultPutExtra PutExtra
+
+// Put 上传一个文件。
+//
+// ctx     是请求的上下文。
+// ret     是上传成功后返回的数据。如果 uptoken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
+// uptoken 是由业务服务器颁发的上传凭证。
+// key     是要上传的文件访问路径。比如："foo/bar.jpg"。注意我们建议 key 不要以 '/' 开头。另外，key 为空字符串是合法的。
+// data    是文件内容的访问接口（io.Reader）。
+// fsize   是要上传的文件大小。
+// extra   是上传的一些可选项。详细见 PutExtra 结构的描述。
+func (p Uploader) Put(
+	ctx context.Context, ret interface{}, uptoken,
+	key string, data io.ReaderAt, size int64, extra *PutExtra) error {
+
+	return p.put(ctx, ret, uptoken, key, true, data, size, extra, path.Base(key))
+}
+
+// PutWithoutKey 上传一个文件。文件的访问路径（key）自动生成。
+// 如果 uptoken 中设置了 SaveKey，那么按 SaveKey 要求的规则生成 key，否则自动以文件的 hash 做 key。
+//
+// ctx     是请求的上下文。
+// ret     是上传成功后返回的数据。如果 uptoken 中没有设置 CallbackUrl 或 ReturnBody，那么返回的数据结构是 PutRet 结构。
+// uptoken 是由业务服务器颁发的上传凭证。
+// data    是文件内容的访问接口（io.Reader）。
+// fsize   是要上传的文件大小。
+// extra   是上传的一些可选项。详细见 PutExtra 结构的描述。
+func (p Uploader) PutWithoutKey(
+	ctx context.Context, ret interface{}, uptoken string, data io.ReaderAt, size int64, extra *PutExtra) error {
+
+	return p.put(ctx, ret, uptoken, "", false, data, size, extra, "filename")
+}
 
 func (p Uploader) put(
 	ctx context.Context, ret interface{}, uptoken string,

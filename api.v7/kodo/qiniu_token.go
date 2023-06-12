@@ -1,7 +1,9 @@
 package kodo
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -60,4 +62,19 @@ func (p *Client) MakeUpTokenWithExpires(policy *PutPolicy, expires uint32) strin
 	rr.Deadline += expires + uint32(time.Now().Unix())
 	b, _ := json.Marshal(rr)
 	return p.mac.SignWithData(b)
+}
+
+func ParseUpToken(uptoken string) (policy PutPolicy, err error) {
+	ps := strings.Split(uptoken, ":")
+	if len(ps) != 3 {
+		err = errors.New("invalid uptoken")
+		return
+	}
+
+	pb, err := base64.URLEncoding.DecodeString(ps[2])
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(pb, &policy)
+	return
 }

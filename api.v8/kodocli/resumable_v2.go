@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/service-sdk/go-sdk-qn/api.v8/kodo"
+	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 	"github.com/service-sdk/go-sdk-qn/api.v8/limit"
 	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
 	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
@@ -158,7 +158,7 @@ func (p Uploader) upload(ctx context.Context, ret interface{}, uptoken, key stri
 		return errors.New("can't upload empty file")
 	}
 
-	policy, err := kodo.ParseUptoken(uptoken)
+	policy, err := kodo.ParseUpToken(uptoken)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (p Uploader) StreamUploadWithoutKey(ctx context.Context, ret interface{}, u
 }
 
 func (p Uploader) streamUpload(ctx context.Context, ret interface{}, uptoken, key string, hasKey bool, reader io.Reader, partNotify func(partIdx int, etag string)) error {
-	policy, err := kodo.ParseUptoken(uptoken)
+	policy, err := kodo.ParseUpToken(uptoken)
 	if err != nil {
 		return err
 	}

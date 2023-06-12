@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/service-sdk/go-sdk-qn/api.v8/kodo"
+	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
 )
 
 var uploader Uploader
@@ -47,8 +47,8 @@ func TestPartsUpload(t *testing.T) {
 	policy := kodo.PutPolicy{
 		Scope: bucket,
 	}
-	cli := kodo.New(1, &kodo.Config{AccessKey: ak, SecretKey: sk})
-	uptoken := cli.MakeUptoken(&policy)
+	cli := kodo.NewClient(&kodo.Config{AccessKey: ak, SecretKey: sk})
+	uptoken := cli.MakeUpToken(&policy)
 
 	f, err := os.Open(fpath)
 	if err != nil {
