@@ -22,6 +22,8 @@ type singleClusterUploader struct {
 	partSize      int64
 	upConcurrency int
 	queryer       IQueryer
+	dialTimeout   time.Duration
+	upTimeout     time.Duration
 }
 
 func newSingleClusterUploader(c *Config) *singleClusterUploader {
@@ -43,6 +45,18 @@ func newSingleClusterUploader(c *Config) *singleClusterUploader {
 		partSize:      part,
 		upConcurrency: c.UpConcurrency,
 		queryer:       queryer,
+		dialTimeout: time.Duration(func() int {
+			if c.DialTimeoutMs <= 0 {
+				return 1000 // 1s
+			}
+			return c.DialTimeoutMs
+		}()) * time.Millisecond,
+		upTimeout: time.Duration(func() int {
+			if c.UpTimeoutMs <= 0 {
+				return 10 * 60 * 1000 // 10 min
+			}
+			return c.UpTimeoutMs
+		}()) * time.Millisecond,
 	}
 }
 
@@ -79,6 +93,8 @@ func (p *singleClusterUploader) uploadData(data []byte, key string) (err error) 
 		UpHosts:        upHosts,
 		UploadPartSize: p.partSize,
 		Concurrency:    p.upConcurrency,
+		DialTimeout:    p.dialTimeout,
+		UpTimeout:      p.upTimeout,
 	})
 	for i := 0; i < 3; i++ {
 		err = uploader.Put2(context.Background(), nil, upToken, key, bytes.NewReader(data), int64(len(data)), nil)
@@ -114,6 +130,8 @@ func (p *singleClusterUploader) uploadDataReader(data io.ReaderAt, size int, key
 		UpHosts:        upHosts,
 		UploadPartSize: p.partSize,
 		Concurrency:    p.upConcurrency,
+		DialTimeout:    p.dialTimeout,
+		UpTimeout:      p.upTimeout,
 	})
 
 	for i := 0; i < 3; i++ {
@@ -162,6 +180,8 @@ func (p *singleClusterUploader) upload(file string, key string) (err error) {
 		UpHosts:        upHosts,
 		UploadPartSize: p.partSize,
 		Concurrency:    p.upConcurrency,
+		DialTimeout:    p.dialTimeout,
+		UpTimeout:      p.upTimeout,
 	})
 
 	if fInfo.Size() <= p.partSize {
@@ -211,6 +231,8 @@ func (p *singleClusterUploader) uploadReader(reader io.Reader, key string) (err 
 		UpHosts:        upHosts,
 		UploadPartSize: p.partSize,
 		Concurrency:    p.upConcurrency,
+		DialTimeout:    p.dialTimeout,
+		UpTimeout:      p.upTimeout,
 	})
 
 	bufReader := bufio.NewReader(reader)

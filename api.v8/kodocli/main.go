@@ -1,6 +1,7 @@
 package kodocli
 
 import (
+	"net"
 	"net/http"
 	"time"
 
@@ -42,6 +43,8 @@ type UploadConfig struct {
 	UploadPartSize int64
 	Concurrency    int
 	UseBuffer      bool
+	DialTimeout    time.Duration
+	UpTimeout      time.Duration
 }
 
 type Uploader struct {
@@ -79,7 +82,14 @@ func NewUploader(zone int, cfg *UploadConfig) (p Uploader) {
 
 	p.UseBuffer = uc.UseBuffer
 	p.UpHosts = uc.UpHosts
-	p.Conn.Client = &http.Client{Transport: uc.Transport, Timeout: 10 * time.Minute}
+	p.Conn.Client = &http.Client{
+		Transport: &http.Transport{
+			DialContext: net.Dialer{
+				Timeout: uc.DialTimeout,
+			}.DialContext,
+		},
+		Timeout: uc.UpTimeout,
+	}
 
 	p.shuffleUpHosts()
 	return
