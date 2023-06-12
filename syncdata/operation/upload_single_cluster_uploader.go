@@ -6,13 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
+	q "github.com/service-sdk/go-sdk-qn/api.v7/kodocli"
 	"io"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
-	q "github.com/service-sdk/go-sdk-qn/api.v8/kodocli"
 )
 
 type singleClusterUploader struct {

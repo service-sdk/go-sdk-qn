@@ -2,17 +2,17 @@ package kodo
 
 import (
 	. "context"
+	kodocli2 "github.com/service-sdk/go-sdk-qn/api.v7/kodocli"
 	"io"
 	"net/http"
 	"time"
 
-	"github.com/service-sdk/go-sdk-qn/api.v8/kodocli"
 	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
-type PutExtra kodocli.PutExtra
-type RputExtra kodocli.RputExtra
-type PutRet kodocli.PutRet
+type PutExtra kodocli2.PutExtra
+type RputExtra kodocli2.RputExtra
+type PutRet kodocli2.PutRet
 
 func (p Bucket) makeUpToken(key string) string {
 	policy := &PutPolicy{
@@ -31,8 +31,8 @@ func (p Bucket) makeUpTokenWithoutKey() string {
 	return p.Conn.MakeUpTokenWithExpires(policy, 3600)
 }
 
-func (p Bucket) makeUploader() kodocli.Uploader {
-	return kodocli.Uploader{
+func (p Bucket) makeUploader() kodocli2.Uploader {
+	return kodocli2.Uploader{
 		Conn: rpc.Client{
 			Client: &http.Client{Transport: p.Conn.Transport, Timeout: 10 * time.Minute},
 		},
@@ -55,7 +55,7 @@ func (p Bucket) Put(
 
 	uploader := p.makeUploader()
 	uptoken := p.makeUpToken(key)
-	return uploader.Put(ctx, ret, uptoken, key, data, size, (*kodocli.PutExtra)(extra))
+	return uploader.Put(ctx, ret, uptoken, key, data, size, (*kodocli2.PutExtra)(extra))
 }
 
 // 上传一个文件。自动以文件的 hash 作为文件的访问路径（key）。
@@ -70,7 +70,7 @@ func (p Bucket) PutWithoutKey(
 
 	uploader := p.makeUploader()
 	uptoken := p.makeUpTokenWithoutKey()
-	return uploader.PutWithoutKey(ctx, ret, uptoken, data, size, (*kodocli.PutExtra)(extra))
+	return uploader.PutWithoutKey(ctx, ret, uptoken, data, size, (*kodocli2.PutExtra)(extra))
 }
 
 // 上传一个文件。
@@ -85,7 +85,7 @@ func (p Bucket) PutFile(
 
 	uploader := p.makeUploader()
 	uptoken := p.makeUpToken(key)
-	return uploader.PutFile(ctx, ret, uptoken, key, localFile, (*kodocli.PutExtra)(extra))
+	return uploader.PutFile(ctx, ret, uptoken, key, localFile, (*kodocli2.PutExtra)(extra))
 }
 
 // 上传一个文件。自动以文件的 hash 作为文件的访问路径（key）。
@@ -100,7 +100,7 @@ func (p Bucket) PutFileWithoutKey(
 
 	uploader := p.makeUploader()
 	uptoken := p.makeUpTokenWithoutKey()
-	return uploader.PutFileWithoutKey(ctx, ret, uptoken, localFile, (*kodocli.PutExtra)(extra))
+	return uploader.PutFileWithoutKey(ctx, ret, uptoken, localFile, (*kodocli2.PutExtra)(extra))
 }
 
 // ----------------------------------------------------------
@@ -118,7 +118,7 @@ func (p Bucket) Rput(
 
 	uploader := p.makeUploader()
 	uptoken := p.makeUpToken(key)
-	return uploader.Rput(ctx, ret, uptoken, key, data, size, (*kodocli.RputExtra)(extra))
+	return uploader.Rput(ctx, ret, uptoken, key, data, size, (*kodocli2.RputExtra)(extra))
 }
 
 // 上传一个文件，支持断点续传和分块上传。自动以文件的 hash 作为文件的访问路径（key）。
@@ -133,7 +133,7 @@ func (p Bucket) RputWithoutKey(
 
 	uploader := p.makeUploader()
 	uptoken := p.makeUpTokenWithoutKey()
-	return uploader.RputWithoutKey(ctx, ret, uptoken, data, size, (*kodocli.RputExtra)(extra))
+	return uploader.RputWithoutKey(ctx, ret, uptoken, data, size, (*kodocli2.RputExtra)(extra))
 }
 
 // 上传一个文件，支持断点续传和分块上传。
@@ -149,7 +149,7 @@ func (p Bucket) RputFile(
 
 	uploader := p.makeUploader()
 	uptoken := p.makeUpToken(key)
-	return uploader.RputFile(ctx, ret, uptoken, key, localFile, (*kodocli.RputExtra)(extra))
+	return uploader.RputFile(ctx, ret, uptoken, key, localFile, (*kodocli2.RputExtra)(extra))
 }
 
 // 上传一个文件，支持断点续传和分块上传。自动以文件的 hash 作为文件的访问路径（key）。
@@ -164,7 +164,7 @@ func (p Bucket) RputFileWithoutKey(
 
 	uploader := p.makeUploader()
 	uptoken := p.makeUpTokenWithoutKey()
-	return uploader.RputFileWithoutKey(ctx, ret, uptoken, localFile, (*kodocli.RputExtra)(extra))
+	return uploader.RputFileWithoutKey(ctx, ret, uptoken, localFile, (*kodocli2.RputExtra)(extra))
 }
 
 // ----------------------------------------------------------

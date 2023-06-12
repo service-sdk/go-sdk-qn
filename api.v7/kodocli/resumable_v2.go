@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/service-sdk/go-sdk-qn/x/limit"
 	"io"
 	"io/ioutil"
 	"math"
@@ -17,7 +18,6 @@ import (
 	"time"
 
 	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
-	"github.com/service-sdk/go-sdk-qn/api.v8/limit"
 	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
 	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
 )
