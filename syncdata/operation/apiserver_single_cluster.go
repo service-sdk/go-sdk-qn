@@ -126,7 +126,7 @@ func (svr *singleClusterApiServer) scale(ctx context.Context, n, m uint64) (s *s
 func (svr *singleClusterApiServer) newClient(host string) *kodo.Client {
 	cfg := kodo.Config{
 		AccessKey: svr.credentials.GetAccessKey(),
-		SecretKey: string(svr.credentials.GetSecretKey()),
+		SecretKey: svr.credentials.GetSecretKey(),
 		APIHost:   host,
 	}
 	return kodo.NewClient(&cfg)

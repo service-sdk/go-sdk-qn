@@ -283,7 +283,7 @@ func TestBatch(t *testing.T) {
 	defer deleteKey(t, key1)
 
 	var rets []BatchItemRet
-	err := client.Batch(nil, &rets, []string{
+	err := bucket.Batch(nil, &rets, []string{
 		URICopy(bucketName, key1, bucketName, key2),
 		URIDelete(bucketName, key1),
 		URIMove(bucketName, key2, bucketName, key1),

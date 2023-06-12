@@ -6,12 +6,12 @@ import (
 )
 
 // Batch 批量操作
-func (p *Client) Batch(ctx context.Context, ret interface{}, op []string) (err error) {
-	return p.CallWithForm(
+func (p Bucket) Batch(ctx context.Context, ret interface{}, op []string) (err error) {
+	return p.Conn.CallWithForm(
 		ctx,
 		ret,
 		"POST",
-		p.RSHost+"/batch",
+		p.Conn.RSHost+"/batch",
 		map[string][]string{"op": op},
 	)
 }
@@ -21,7 +21,7 @@ func (p Bucket) BatchStat(ctx context.Context, keys ...string) (ret []BatchStatI
 	for i, key := range keys {
 		b[i] = URIStat(p.Name, key)
 	}
-	err = p.Conn.Batch(ctx, &ret, b)
+	err = p.Batch(ctx, &ret, b)
 	return
 }
 
@@ -30,7 +30,7 @@ func (p Bucket) BatchDelete(ctx context.Context, keys ...string) (ret []BatchIte
 	for i, key := range keys {
 		b[i] = URIDelete(p.Name, key)
 	}
-	err = p.Conn.Batch(ctx, &ret, b)
+	err = p.Batch(ctx, &ret, b)
 	return
 }
 
@@ -50,7 +50,7 @@ func (p Bucket) BatchMove(ctx context.Context, entries ...KeyPairEx) (ret []Batc
 	for i, e := range entries {
 		b[i] = URIMove(p.Name, e.SrcKey, e.DestBucket, e.DestKey)
 	}
-	err = p.Conn.Batch(ctx, &ret, b)
+	err = p.Batch(ctx, &ret, b)
 	return
 }
 
@@ -59,7 +59,7 @@ func (p Bucket) BatchCopy(ctx context.Context, entries ...KeyPair) (ret []BatchI
 	for i, e := range entries {
 		b[i] = URICopy(p.Name, e.SrcKey, p.Name, e.DestKey)
 	}
-	err = p.Conn.Batch(ctx, &ret, b)
+	err = p.Batch(ctx, &ret, b)
 	return
 }
 
