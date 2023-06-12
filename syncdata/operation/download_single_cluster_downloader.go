@@ -8,6 +8,7 @@ import (
 	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
 	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type singleClusterDownloader struct {
@@ -22,6 +24,9 @@ type singleClusterDownloader struct {
 	ioHosts     []string
 	credentials *qbox.Mac
 	queryer     IQueryer
+	dialTimeout time.Duration
+	ioTimeout   time.Duration
+	client      *http.Client
 }
 
 func newSingleClusterDownloader(c *Config) *singleClusterDownloader {
@@ -38,9 +43,43 @@ func newSingleClusterDownloader(c *Config) *singleClusterDownloader {
 		ioHosts:     dupStrings(c.IoHosts),
 		credentials: mac,
 		queryer:     queryer,
+		dialTimeout: time.Duration(func() int {
+			if c.DialTimeoutMs <= 0 {
+				return 1000 // 1s
+			}
+			return c.DialTimeoutMs
+		}()) * time.Millisecond,
+		ioTimeout: time.Duration(func() int {
+			if c.IoTimeoutMs <= 0 {
+				return 10 * 60 * 1000 // 10m
+			}
+			return c.IoTimeoutMs
+		}()) * time.Millisecond,
 	}
 	shuffleHosts(downloader.ioHosts)
 	return &downloader
+}
+
+func (d *singleClusterDownloader) getDownloadClient() *http.Client {
+	if d.client != nil {
+		return d.client
+	}
+	dialer := &net.Dialer{
+		Timeout:   d.dialTimeout,
+		KeepAlive: 30 * time.Second,
+	}
+	d.client = &http.Client{
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+		Timeout: d.ioTimeout,
+	}
+	return d.client
 }
 
 func (d *singleClusterDownloader) downloadRaw(key string, headers http.Header) (resp *http.Response, err error) {
@@ -198,7 +237,7 @@ func (d *singleClusterDownloader) downloadRawInner(key string, headers http.Head
 		req.Header[headerName] = headerValue
 	}
 	req.Header.Set("User-Agent", rpc.UserAgent)
-	response, err := downloadClient.Do(req)
+	response, err := d.getDownloadClient().Do(req)
 	if err != nil {
 		failedIoHosts[host] = struct{}{}
 		failHostName(host)
@@ -308,7 +347,7 @@ func (d *singleClusterDownloader) downloadCheckInner(key, host string) (f *FileS
 
 	req.Header.Set("Range", generateRange(-1, 4))
 	req.Header.Set("User-Agent", rpc.UserAgent)
-	response, err := downloadClient.Do(req)
+	response, err := d.getDownloadClient().Do(req)
 	if err != nil {
 		return &FileStat{
 			Name: key,
