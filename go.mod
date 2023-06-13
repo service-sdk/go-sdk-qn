@@ -1,4 +1,4 @@
-module github.com/service-sdk/go-sdk-qn
+module github.com/service-sdk/go-sdk-qn/v2
 
 go 1.15
 
