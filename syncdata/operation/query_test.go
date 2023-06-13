@@ -90,7 +90,7 @@ func assertQueryByTimeout(t *testing.T, serverDialDuration, serverDuration, clie
 	} else {
 		assert.NoError(t, err)
 	}
-	assert.GreaterOrEqual(t, time.Now().Add(86400*time.Second).Compare(c.CacheExpiredAt), 0)
+	assert.True(t, time.Now().Add(86400*time.Second).After(c.CacheExpiredAt))
 
 	assert.Equal(t, int64(86400), c.CachedHosts.Hosts[0].Ttl)
 

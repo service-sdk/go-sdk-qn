@@ -25,11 +25,9 @@ func TestListPrefix(t *testing.T) {
 	assert.NoError(t, err)
 
 	err = uploader.UploadData([]byte("test1"), "test1")
-	defer lister.Delete("test1")
 	assert.NoError(t, err)
 
 	err = uploader.UploadData([]byte("test2"), "test2")
-	defer lister.Delete("test2")
 	assert.NoError(t, err)
 
 	result = lister.ListPrefix("")
