@@ -14,10 +14,10 @@ const (
 	DefaultConfigDialTimeoutMs = 1000           // 1s
 	DefaultConfigIoTimeoutMs   = 10 * 60 * 1000 // 10min
 	DefaultConfigUpTimeoutMs   = 10 * 60 * 1000 // 10min
-	DefaultConfigApiTimeoutMs  = 1000           // 1s
-	DefaultConfigUcTimeoutMs   = 1000           // 1s
-	DefaultConfigRsTimeoutMs   = 10000          // 1s
-	DefaultConfigRsfTimeoutMs  = 1000           // 1s
+	DefaultConfigApiTimeoutMs  = 3000           // 3s
+	DefaultConfigUcTimeoutMs   = 3000           // 3s
+	DefaultConfigRsTimeoutMs   = 3000           // 3s
+	DefaultConfigRsfTimeoutMs  = 3000           // 3s
 )
 
 // SingleClusterConfig 单集群配置文件
