@@ -93,14 +93,16 @@ func (svr *singleClusterApiServer) miscconfigs(ctx context.Context) (mcfgs *misc
 		apiServerHost := svr.nextApiServerHost(failedApiServerHosts)
 		url := fmt.Sprintf("%s/miscconfigs", apiServerHost)
 		var ret miscConfigs
-		if err := svr.newClient(apiServerHost).CallWithTimeout(ctx, &ret, http.MethodGet, url, svr.apiTimeout); err != nil {
+		if err = svr.newClient(apiServerHost).CallWithTimeout(ctx, &ret, http.MethodGet, url, svr.apiTimeout); err != nil {
 			failedApiServerHosts[apiServerHost] = struct{}{}
 			failHostName(apiServerHost)
 			continue
+		} else {
+			succeedHostName(apiServerHost)
+			mcfgs = &ret
+			err = nil
+			break
 		}
-		succeedHostName(apiServerHost)
-		mcfgs = &ret
-		break
 	}
 	return
 }
@@ -116,14 +118,16 @@ func (svr *singleClusterApiServer) scale(ctx context.Context, n, m uint64) (s *s
 		apiServerHost := svr.nextApiServerHost(failedApiServerHosts)
 		url := fmt.Sprintf("%s/tool/scale/n/%d/m/%d", apiServerHost, n, m)
 		var ret scale
-		if err := svr.newClient(apiServerHost).CallWithTimeout(ctx, &ret, http.MethodGet, url, svr.apiTimeout); err != nil {
+		if err = svr.newClient(apiServerHost).CallWithTimeout(ctx, &ret, http.MethodGet, url, svr.apiTimeout); err != nil {
 			failedApiServerHosts[apiServerHost] = struct{}{}
 			failHostName(apiServerHost)
 			continue
+		} else {
+			succeedHostName(apiServerHost)
+			s = &ret
+			err = nil
+			return
 		}
-		succeedHostName(apiServerHost)
-		s = &ret
-		break
 	}
 	return
 }
