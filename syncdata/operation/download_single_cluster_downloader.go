@@ -8,7 +8,6 @@ import (
 	"github.com/service-sdk/go-sdk-qn/v2/x/goroutine_pool.v7"
 	"github.com/service-sdk/go-sdk-qn/v2/x/rpc.v7"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -20,13 +19,13 @@ import (
 )
 
 type singleClusterDownloader struct {
-	bucket      string
-	ioHosts     []string
-	credentials *qbox.Mac
-	queryer     IQueryer
-	dialTimeout time.Duration
-	ioTimeout   time.Duration
-	client      *http.Client
+	bucket        string
+	ioHosts       []string
+	credentials   *qbox.Mac
+	queryer       IQueryer
+	httpTransport http.RoundTripper
+	ioTimeout     time.Duration
+	client        *http.Client
 }
 
 func newSingleClusterDownloader(c *Config) *singleClusterDownloader {
@@ -39,12 +38,12 @@ func newSingleClusterDownloader(c *Config) *singleClusterDownloader {
 	}
 
 	downloader := singleClusterDownloader{
-		bucket:      c.Bucket,
-		ioHosts:     dupStrings(c.IoHosts),
-		credentials: mac,
-		queryer:     queryer,
-		dialTimeout: buildDurationByMs(c.DialTimeoutMs, DefaultConfigDialTimeoutMs),
-		ioTimeout:   buildDurationByMs(c.IoTimeoutMs, DefaultConfigIoTimeoutMs),
+		bucket:        c.Bucket,
+		ioHosts:       dupStrings(c.IoHosts),
+		credentials:   mac,
+		queryer:       queryer,
+		httpTransport: getHttpClientTransport(c),
+		ioTimeout:     buildDurationByMs(c.IoTimeoutMs, DefaultConfigIoTimeoutMs),
 	}
 	shuffleHosts(downloader.ioHosts)
 	return &downloader
@@ -54,20 +53,9 @@ func (d *singleClusterDownloader) getDownloadClient() *http.Client {
 	if d.client != nil {
 		return d.client
 	}
-	dialer := &net.Dialer{
-		Timeout:   d.dialTimeout,
-		KeepAlive: 30 * time.Second,
-	}
 	d.client = &http.Client{
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           dialer.DialContext,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-		Timeout: d.ioTimeout,
+		Transport: d.httpTransport,
+		Timeout:   d.ioTimeout,
 	}
 	return d.client
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -29,12 +28,12 @@ var (
 
 // Queryer 域名查询器
 type Queryer struct {
-	ak          string
-	bucket      string
-	ucHosts     []string
-	dialTimeout time.Duration
-	ucTimeout   time.Duration
-	client      *http.Client
+	ak            string
+	bucket        string
+	ucHosts       []string
+	httpTransport http.RoundTripper
+	ucTimeout     time.Duration
+	client        *http.Client
 }
 
 type IQueryer interface {
@@ -76,11 +75,11 @@ func init() {
 // NewQueryer 根据配置创建域名查询器
 func NewQueryer(c *Config) IQueryer {
 	q := Queryer{
-		ak:          c.Ak,
-		bucket:      c.Bucket,
-		ucHosts:     dupStrings(c.UcHosts),
-		dialTimeout: buildDurationByMs(c.DialTimeoutMs, DefaultConfigDialTimeoutMs),
-		ucTimeout:   buildDurationByMs(c.UcTimeoutMs, DefaultConfigUcTimeoutMs),
+		ak:            c.Ak,
+		bucket:        c.Bucket,
+		ucHosts:       dupStrings(c.UcHosts),
+		httpTransport: getHttpClientTransport(c),
+		ucTimeout:     buildDurationByMs(c.UcTimeoutMs, DefaultConfigUcTimeoutMs),
 	}
 	shuffleHosts(q.ucHosts)
 	return &q
@@ -90,20 +89,10 @@ func (queryer *Queryer) getQueryClient() *http.Client {
 	if queryer.client != nil {
 		return queryer.client
 	}
-	dialer := net.Dialer{
-		Timeout:   queryer.dialTimeout,
-		KeepAlive: 30 * time.Second,
-	}
+
 	queryer.client = &http.Client{
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           dialer.DialContext,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-		Timeout: queryer.ucTimeout,
+		Transport: queryer.httpTransport,
+		Timeout:   queryer.ucTimeout,
 	}
 	return queryer.client
 }

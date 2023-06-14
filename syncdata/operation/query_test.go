@@ -77,11 +77,10 @@ func assertQueryByTimeout(t *testing.T, serverDialDuration, serverDuration, clie
 
 	log.Println("server started url: ", server.URL)
 	queryer := Queryer{
-		ak:          "mock_ak",
-		bucket:      "mock_bucket",
-		ucHosts:     []string{server.URL},
-		ucTimeout:   clientTimeout,
-		dialTimeout: clientDialTimeout,
+		ak:        "mock_ak",
+		bucket:    "mock_bucket",
+		ucHosts:   []string{server.URL},
+		ucTimeout: clientTimeout,
 	}
 	c, err := queryer.mustQuery()
 	if expectErr {
