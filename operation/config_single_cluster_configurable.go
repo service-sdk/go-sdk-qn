@@ -16,8 +16,8 @@ const (
 	DefaultConfigUpTimeoutMs   = 10 * 60 * 1000 // 10min
 	DefaultConfigApiTimeoutMs  = 3000           // 3s
 	DefaultConfigUcTimeoutMs   = 3000           // 3s
-	DefaultConfigRsTimeoutMs   = 3000           // 3s
-	DefaultConfigRsfTimeoutMs  = 3000           // 3s
+	DefaultConfigRsTimeoutMs   = 60 * 1000      // 1min
+	DefaultConfigRsfTimeoutMs  = 60 * 1000      // 1min
 )
 
 // SingleClusterConfig 单集群配置文件
