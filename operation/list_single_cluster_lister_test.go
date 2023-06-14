@@ -223,12 +223,18 @@ func clearBucket(t *testing.T, l clusterLister) {
 		assert.NoError(t, err)
 	}()
 
+	errCh := make(chan DeleteKeysError, 1)
+	go func() {
+		for range errCh {
+			// ignore error
+		}
+	}()
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := l.deleteKeysFromChannel(context.Background(), ch, true, nil)
+			err := l.deleteKeysFromChannel(context.Background(), ch, true, errCh)
 			assert.NoError(t, err)
 		}()
 	}
