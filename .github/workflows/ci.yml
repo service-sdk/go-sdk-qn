@@ -19,4 +19,4 @@ jobs:
           QINIU_TEST_UC_HOSTS: ${{ secrets.QINIU_TEST_UC_HOSTS }}
           QINIU_TEST_BUCKET: ${{ secrets.QINIU_TEST_BUCKET }}
           QINIU_KODO_TEST: "on"
-        run: go run x/gotest.v1/main.go 5 ./syncdata/operation
+        run: go run operation/internal/x/gotest.v1/main.go 5 ./operation
