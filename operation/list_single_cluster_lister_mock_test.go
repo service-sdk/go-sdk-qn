@@ -56,3 +56,26 @@ func TestSingleClusterLister_RsTimeout(t *testing.T) {
 	assertTimeout(500, 100, true)
 	assertTimeout(100, 500, false)
 }
+
+func TestSingleClusterLister_MockDeleteAsDeleteKeysWithRetries(t *testing.T) {
+	mockServer := newMockServer(t)
+	defer mockServer.Close()
+	mockConfig := mockServer.getConfig()
+
+	l := newSingleClusterLister(mockConfig)
+	uploader := NewUploader(mockConfig)
+
+	var err error
+	var paths []string
+	for j := 0; j < 3; j++ {
+		err = uploader.UploadData([]byte{1, 2, 3}, "test1")
+		assert.NoError(t, err)
+		paths = append(paths, "test1")
+	}
+
+	_, _ = l.deleteAsDeleteKeysWithRetries(context.Background(), paths, 10, 0)
+
+	r, err := l.listPrefix(context.Background(), "")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(r))
+}

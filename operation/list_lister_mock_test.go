@@ -1,82 +1,15 @@
 package operation
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
 	"github.com/stretchr/testify/assert"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
 func TestLister_MockForceDeleteKeys(t *testing.T) {
-	db := make(map[string][]byte)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := r.URL.Path
-		switch {
-		case strings.HasPrefix(p, "/put/"):
-			w.WriteHeader(http.StatusOK)
-			var size int
-			var key string
-			_, err := fmt.Sscanf(p, "/put/%d/key/%s", &size, &key)
-			assert.NoError(t, err)
-			keyBs, err := base64.URLEncoding.DecodeString(key)
-			assert.NoError(t, err)
-			key = string(keyBs)
-			bs := make([]byte, size)
-			_, err = io.ReadAll(r.Body)
-			assert.NoError(t, err)
-			db[key] = bs
-		case strings.HasPrefix(p, "/list"):
-			w.WriteHeader(http.StatusOK)
-			a := struct {
-				Items []struct {
-					Key string `json:"key"`
-				} `json:"items"`
-			}{}
-			for k := range db {
-				a.Items = append(a.Items, struct {
-					Key string `json:"key"`
-				}{Key: k})
-			}
-			err := json.NewEncoder(w).Encode(a)
-			assert.NoError(t, err)
-		case strings.HasPrefix(p, "/batch"):
-			w.WriteHeader(http.StatusOK)
-			db = make(map[string][]byte)
-			var resp []struct {
-				Code int `json:"code"`
-				Data struct {
-					Error string `json:"error"`
-				}
-			}
-			for range db {
-				resp = append(resp, struct {
-					Code int `json:"code"`
-					Data struct {
-						Error string `json:"error"`
-					}
-				}{Code: 612})
-			}
-			err := json.NewEncoder(w).Encode(resp)
-			assert.NoError(t, err)
-		default:
-			assert.Fail(t, "unknown path: "+r.URL.String())
-		}
-	}))
-	defer server.Close()
-	mockConfig := &Config{
-		Ak:       "mock_ak",
-		Sk:       "mock_sk",
-		Bucket:   "testBucket",
-		UpHosts:  []string{server.URL},
-		RsfHosts: []string{server.URL},
-		RsHosts:  []string{server.URL},
-	}
-	db = make(map[string][]byte)
+	mockServer := newMockServer(t)
+	defer mockServer.Close()
+	mockConfig := mockServer.getConfig()
+
 	lister := &Lister{newSingleClusterLister(mockConfig)}
 
 	uploader := NewUploader(mockConfig)
