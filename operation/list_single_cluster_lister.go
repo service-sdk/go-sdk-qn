@@ -366,7 +366,7 @@ func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []s
 
 	// 如果有需要重试的文件，那么进行重试
 	if len(failedPath) > 0 {
-		elog.Warn("redelete ", len(failedPath), " bad files, retried:", retried)
+		elog.Warn("restat ", len(failedPath), " bad files, retried:", retried)
 
 		// 将失败的文件进行重试
 		retriedErrors, err := l.listStatWithRetries(ctx, failedPath, retries-1, retried+1)
@@ -584,7 +584,7 @@ func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context,
 
 				// 批量删除的结果，过滤掉成功的，记录失败的到 errors 中
 				for j, v := range res {
-					if v.Code == 200 {
+					if v.Code == 200 || v.Code == 612 {
 						errors[index+j] = nil
 						continue
 					}
@@ -790,7 +790,7 @@ func (l *singleClusterLister) copyKeysWithRetries(ctx context.Context, input []C
 
 				// 批量删除的结果，过滤掉成功的，记录失败的到 errors 中
 				for j, v := range res {
-					if v.Code == 200 {
+					if v.Code == 200 || v.Code == 612 {
 						errors[index+j] = nil
 						continue
 					}
@@ -800,7 +800,7 @@ func (l *singleClusterLister) copyKeysWithRetries(ctx context.Context, input []C
 						FromKey: paths[j].FromKey,
 						ToKey:   paths[j].ToKey,
 					}
-					elog.Warn("delete bad file:", paths[j], "with code:", v.Code)
+					elog.Warn("copy bad file:", paths[j], "with code:", v.Code)
 				}
 				return nil
 			})
@@ -965,7 +965,7 @@ func (l *singleClusterLister) moveKeysWithRetries(ctx context.Context, input []M
 						},
 						ToBucket: paths[j].ToBucket,
 					}
-					elog.Warn("delete bad file:", paths[j], "with code:", v.Code)
+					elog.Warn("move bad file:", paths[j], "with code:", v.Code)
 				}
 				return nil
 			})

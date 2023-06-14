@@ -3,6 +3,7 @@ package operation
 import (
 	"context"
 	"fmt"
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/log.v7"
 	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
@@ -279,4 +280,28 @@ func TestSingleClusterLister_upload_moveKeysFromChannel_listPrefix(t *testing.T)
 	r, err := l.listPrefix(context.Background(), "move/")
 	assert.NoError(t, err)
 	assert.Equal(t, 5000, len(r))
+}
+
+func TestSingleClusterLister_deleteAsDeleteKeysFromChannelWithRetries(t *testing.T) {
+	l := getClearedSingleClusterListerForTest(t)
+	// 批量上传5000个文件
+	paths := makeLotsFiles(t, 2000, 500)
+	paths = append(paths, "no_exists_1", "no_exists_2", "no_exists_3")
+
+	keysChan := make(chan string, 1000)
+	go func() {
+		defer close(keysChan)
+		for _, path := range paths {
+			keysChan <- path
+		}
+	}()
+
+	errorsChan := make(chan DeleteKeysError, 1000)
+	go func() {
+		for err := range errorsChan {
+			log.Errorf("delete %s error: %s code: %d", err.Name, err.Error, err.Code)
+		}
+	}()
+	err := l.deleteAsDeleteKeysFromChannelWithRetries(context.Background(), keysChan, 3, errorsChan)
+	assert.NoError(t, err)
 }
