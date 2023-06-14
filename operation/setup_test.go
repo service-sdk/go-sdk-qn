@@ -2,6 +2,7 @@ package operation
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -53,4 +54,9 @@ func checkSkipTest(t *testing.T) {
 	if os.Getenv("QINIU_KODO_TEST") == "" {
 		t.Skip("skipping test in short mode.")
 	}
+}
+
+func TestMain(m *testing.M) {
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	os.Exit(m.Run())
 }
