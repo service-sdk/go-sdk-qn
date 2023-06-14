@@ -16,6 +16,21 @@ func getClearedSingleClusterListerForTest(t *testing.T) *singleClusterLister {
 	return l
 }
 
+func TestSingleClusterLister_deleteAsDeleteKeysWithRetries(t *testing.T) {
+	var err error
+	l := getClearedSingleClusterListerForTest(t)
+
+	paths := makeLotsFiles(t, 2000, 500)
+	paths = append(paths, "no_exists_file1", "no_exists_file2")
+
+	_, err = l.deleteAsDeleteKeysWithRetries(context.Background(), paths, 10, 0)
+	assert.NoError(t, err)
+
+	r, err := l.listPrefix(context.Background(), "")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(r))
+}
+
 // 上传，列举，拷贝，列举，删除，列举
 func TestSingleClusterLister_upload_listPrefix_copy_delete(t *testing.T) {
 	l := getClearedSingleClusterListerForTest(t)
