@@ -46,7 +46,7 @@ func TestPartsUpload(t *testing.T) {
 	policy := PutPolicy{
 		Scope: bucket,
 	}
-	cli := kodo.NewClient(&kodo.Config{AccessKey: ak, SecretKey: sk})
+	cli := kodo.NewClient(&kodo.Config{AccessKey: ak, SecretKey: sk}, nil)
 	uptoken := cli.MakeUpToken(&policy)
 
 	f, err := os.Open(fpath)

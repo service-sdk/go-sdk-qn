@@ -42,7 +42,7 @@ func setup() {
 		RSHost:    os.Getenv("QINIU_TEST_RS_HOST"),
 		APIHost:   os.Getenv("QINIU_TEST_API_HOST"),
 		Scheme:    "http",
-	})
+	}, nil)
 	bucket = NewBucket(client, bucketName)
 }
 

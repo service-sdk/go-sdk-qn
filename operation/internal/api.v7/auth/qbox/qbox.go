@@ -1,20 +1,13 @@
 package qbox
 
 import (
-	"net"
 	"net/http"
 	"time"
 )
 
-func NewClient(mac *Mac, dialTimeout, totalTimeout time.Duration) *http.Client {
-	dialer := &net.Dialer{
-		Timeout: dialTimeout,
-	}
-	transport := &http.Transport{
-		DialContext: dialer.DialContext,
-	}
+func NewClient(mac *Mac, httpTransport http.RoundTripper, totalTimeout time.Duration) *http.Client {
 	return &http.Client{
-		Transport: NewTransport(mac, transport),
+		Transport: NewTransport(mac, httpTransport),
 		Timeout:   totalTimeout,
 	}
 }

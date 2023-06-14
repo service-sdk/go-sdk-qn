@@ -8,6 +8,7 @@ import (
 	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/httputil.v1"
 	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/rpc.v7"
 	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,8 @@ type singleClusterLister struct {
 	rsfTimeout time.Duration
 	upTimeout  time.Duration
 	apiTimeout time.Duration
+
+	httpTransport http.RoundTripper
 }
 
 func newSingleClusterLister(c *Config) *singleClusterLister {
@@ -59,6 +62,7 @@ func newSingleClusterLister(c *Config) *singleClusterLister {
 		batchConcurrency: c.BatchConcurrency,
 		batchSize:        c.BatchSize,
 		recycleBin:       c.RecycleBin,
+		httpTransport:    getHttpClientTransport(c),
 	}
 	if lister.batchConcurrency <= 0 {
 		lister.batchConcurrency = 20
@@ -713,7 +717,7 @@ func (l *singleClusterLister) newBucket(host, rsfHost, apiHost string) kodo2.Buc
 		ApiTimeout: l.apiTimeout,
 		UpTimeout:  l.upTimeout,
 	}
-	client := kodo2.NewClient(&cfg)
+	client := kodo2.NewClient(&cfg, l.httpTransport)
 	return *kodo2.NewBucket(client, l.bucket)
 }
 

@@ -7,8 +7,9 @@ import (
 	"encoding/json"
 	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/auth/qbox"
 	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodo"
-	q "github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodocli"
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodocli"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -21,7 +22,7 @@ type singleClusterUploader struct {
 	partSize      int64
 	upConcurrency int
 	queryer       IQueryer
-	dialTimeout   time.Duration
+	httpTransport http.RoundTripper
 	upTimeout     time.Duration
 }
 
@@ -44,9 +45,27 @@ func newSingleClusterUploader(c *Config) *singleClusterUploader {
 		partSize:      part,
 		upConcurrency: c.UpConcurrency,
 		queryer:       queryer,
-		dialTimeout:   buildDurationByMs(c.DialTimeoutMs, DefaultConfigDialTimeoutMs),
+		httpTransport: getHttpClientTransport(c),
 		upTimeout:     buildDurationByMs(c.UpTimeoutMs, DefaultConfigUpTimeoutMs),
 	}
+}
+
+func (p *singleClusterUploader) getUploader() kodocli.Uploader {
+	upHosts := p.upHosts
+	if p.queryer != nil {
+		if hosts := p.queryer.QueryUpHosts(false); len(hosts) > 0 {
+			upHosts = hosts
+		}
+	}
+
+	var uploader = kodocli.NewUploader(1, &kodocli.UploadConfig{
+		UpHosts:        upHosts,
+		UploadPartSize: p.partSize,
+		Concurrency:    p.upConcurrency,
+		Transport:      p.httpTransport,
+		UpTimeout:      p.upTimeout,
+	})
+	return uploader
 }
 
 func (p *singleClusterUploader) makeUptoken(policy *kodo.PutPolicy, expires int) string {
@@ -67,21 +86,7 @@ func (p *singleClusterUploader) uploadData(data []byte, key string) (err error) 
 	key = strings.TrimPrefix(key, "/")
 	policy := kodo.PutPolicy{Scope: p.bucket + ":" + key}
 	upToken := p.makeUptoken(&policy, 3600*24)
-
-	upHosts := p.upHosts
-	if p.queryer != nil {
-		if hosts := p.queryer.QueryUpHosts(false); len(hosts) > 0 {
-			upHosts = hosts
-		}
-	}
-
-	var uploader = q.NewUploader(1, &q.UploadConfig{
-		UpHosts:        upHosts,
-		UploadPartSize: p.partSize,
-		Concurrency:    p.upConcurrency,
-		DialTimeout:    p.dialTimeout,
-		UpTimeout:      p.upTimeout,
-	})
+	uploader := p.getUploader()
 	for i := 0; i < 3; i++ {
 		err = uploader.Put2(context.Background(), nil, upToken, key, bytes.NewReader(data), int64(len(data)), nil)
 		if err == nil {
@@ -104,20 +109,7 @@ func (p *singleClusterUploader) uploadDataReader(data io.ReaderAt, size int, key
 
 	upToken := p.makeUptoken(&policy, 3600*24)
 
-	upHosts := p.upHosts
-	if p.queryer != nil {
-		if hosts := p.queryer.QueryUpHosts(false); len(hosts) > 0 {
-			upHosts = hosts
-		}
-	}
-
-	var uploader = q.NewUploader(1, &q.UploadConfig{
-		UpHosts:        upHosts,
-		UploadPartSize: p.partSize,
-		Concurrency:    p.upConcurrency,
-		DialTimeout:    p.dialTimeout,
-		UpTimeout:      p.upTimeout,
-	})
+	uploader := p.getUploader()
 
 	for i := 0; i < 3; i++ {
 		err = uploader.Put2(context.Background(), nil, upToken, key, newReaderAtNopCloser(data), int64(size), nil)
@@ -153,20 +145,7 @@ func (p *singleClusterUploader) upload(file string, key string) (err error) {
 		return err
 	}
 
-	upHosts := p.upHosts
-	if p.queryer != nil {
-		if hosts := p.queryer.QueryUpHosts(false); len(hosts) > 0 {
-			upHosts = hosts
-		}
-	}
-
-	var uploader = q.NewUploader(1, &q.UploadConfig{
-		UpHosts:        upHosts,
-		UploadPartSize: p.partSize,
-		Concurrency:    p.upConcurrency,
-		DialTimeout:    p.dialTimeout,
-		UpTimeout:      p.upTimeout,
-	})
+	uploader := p.getUploader()
 
 	if fInfo.Size() <= p.partSize {
 		for i := 0; i < 3; i++ {
@@ -203,20 +182,7 @@ func (p *singleClusterUploader) uploadReader(reader io.Reader, key string) (err 
 	}
 	upToken := p.makeUptoken(&policy, 3600*24)
 
-	upHosts := p.upHosts
-	if p.queryer != nil {
-		if hosts := p.queryer.QueryUpHosts(false); len(hosts) > 0 {
-			upHosts = hosts
-		}
-	}
-
-	var uploader = q.NewUploader(1, &q.UploadConfig{
-		UpHosts:        upHosts,
-		UploadPartSize: p.partSize,
-		Concurrency:    p.upConcurrency,
-		DialTimeout:    p.dialTimeout,
-		UpTimeout:      p.upTimeout,
-	})
+	uploader := p.getUploader()
 
 	bufReader := bufio.NewReader(reader)
 	firstPart, err := io.ReadAll(io.LimitReader(bufReader, p.partSize))

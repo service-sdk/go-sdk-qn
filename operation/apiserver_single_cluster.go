@@ -14,7 +14,7 @@ type singleClusterApiServer struct {
 	apiServerHosts []string
 	credentials    *qbox.Mac
 	queryer        IQueryer
-	dialTimeout    time.Duration
+	httpTransport  http.RoundTripper
 	apiTimeout     time.Duration
 }
 
@@ -31,7 +31,7 @@ func newSingleClusterApiServer(c *Config) *singleClusterApiServer {
 		apiServerHosts: dupStrings(c.ApiServerHosts),
 		credentials:    mac,
 		queryer:        queryer,
-		dialTimeout:    buildDurationByMs(c.DialTimeoutMs, DefaultConfigDialTimeoutMs),
+		httpTransport:  getHttpClientTransport(c),
 		apiTimeout:     buildDurationByMs(c.ApiTimeoutMs, DefaultConfigApiTimeoutMs),
 	}
 	shuffleHosts(svr.apiServerHosts)
@@ -137,7 +137,7 @@ func (svr *singleClusterApiServer) newClient(host string) *kodo.QiniuClient {
 		SecretKey: svr.credentials.GetSecretKey(),
 		APIHost:   host,
 	}
-	return kodo.NewClient(&cfg)
+	return kodo.NewClient(&cfg, svr.httpTransport)
 }
 
 func parseWriteModeString(modeString string) (index, replica, n, m uint64, err error) {
