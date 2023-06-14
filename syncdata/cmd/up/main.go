@@ -4,7 +4,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/service-sdk/go-sdk-qn/syncdata/operation"
+	"github.com/service-sdk/go-sdk-qn/v2/syncdata/operation"
 )
 
 func main() {

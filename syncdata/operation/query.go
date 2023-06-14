@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/kirsle/configdir"
-	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/rpc.v7"
 )
 
 var (

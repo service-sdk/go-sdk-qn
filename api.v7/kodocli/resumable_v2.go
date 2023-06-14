@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/service-sdk/go-sdk-qn/x/limit"
+	"github.com/service-sdk/go-sdk-qn/v2/x/limit"
 	"io"
 	"io/ioutil"
 	"math"
@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
-	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
+	"github.com/service-sdk/go-sdk-qn/v2/x/httputil.v1"
+	"github.com/service-sdk/go-sdk-qn/v2/x/xlog.v8"
 )
 
 const minUploadPartSize = 1 << 22

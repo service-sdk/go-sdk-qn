@@ -4,7 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
-	"github.com/service-sdk/go-sdk-qn/x/bytes.v7/seekable"
+	"github.com/service-sdk/go-sdk-qn/v2/x/bytes.v7/seekable"
 	"io"
 	"net/http"
 )

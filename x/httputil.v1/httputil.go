@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
+	"github.com/service-sdk/go-sdk-qn/v2/x/xlog.v8"
 
-	"github.com/service-sdk/go-sdk-qn/x/errors.v1"
-	"github.com/service-sdk/go-sdk-qn/x/log.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/errors.v1"
+	"github.com/service-sdk/go-sdk-qn/v2/x/log.v7"
 )
 
 // ---------------------------------------------------------------------------

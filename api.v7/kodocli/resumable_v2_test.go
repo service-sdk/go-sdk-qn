@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/kodo"
 	"io"
 	"net/http"
 	"os"

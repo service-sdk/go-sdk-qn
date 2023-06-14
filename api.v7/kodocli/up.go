@@ -2,7 +2,7 @@ package kodocli
 
 import (
 	"encoding/json"
-	digest "github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
+	digest "github.com/service-sdk/go-sdk-qn/v2/api.v7/auth/qbox"
 )
 
 const (

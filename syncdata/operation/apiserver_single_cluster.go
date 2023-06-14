@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/auth/qbox"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/kodo"
 )
 
 type singleClusterApiServer struct {

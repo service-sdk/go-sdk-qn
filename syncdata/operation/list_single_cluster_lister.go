@@ -2,11 +2,11 @@ package operation
 
 import (
 	"context"
-	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodo"
-	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
-	"github.com/service-sdk/go-sdk-qn/x/httputil.v1"
-	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/auth/qbox"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/kodo"
+	"github.com/service-sdk/go-sdk-qn/v2/x/goroutine_pool.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/httputil.v1"
+	"github.com/service-sdk/go-sdk-qn/v2/x/rpc.v7"
 	"io"
 	"strings"
 	"sync"

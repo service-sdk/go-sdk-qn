@@ -1,10 +1,10 @@
 package kodo
 
 import (
-	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/auth/qbox"
 	"time"
 )
-import "github.com/service-sdk/go-sdk-qn/x/rpc.v7"
+import "github.com/service-sdk/go-sdk-qn/v2/x/rpc.v7"
 
 type Config struct {
 	AccessKey string

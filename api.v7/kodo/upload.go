@@ -2,8 +2,8 @@ package kodo
 
 import (
 	. "context"
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodocli"
-	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/kodocli"
+	"github.com/service-sdk/go-sdk-qn/v2/x/rpc.v7"
 	"io"
 	"net/http"
 )

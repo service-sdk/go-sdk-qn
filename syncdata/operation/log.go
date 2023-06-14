@@ -1,7 +1,7 @@
 package operation
 
 import (
-	"github.com/service-sdk/go-sdk-qn/api.v7/kodocli"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/kodocli"
 )
 
 // elog is embedded logger

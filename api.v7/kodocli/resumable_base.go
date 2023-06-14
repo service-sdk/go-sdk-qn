@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/service-sdk/go-sdk-qn/x/bytes.v7"
-	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
-	"github.com/service-sdk/go-sdk-qn/x/xlog.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/bytes.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/xlog.v7"
 )
 
 // ----------------------------------------------------------

@@ -3,7 +3,7 @@ package operation
 import (
 	"context"
 	"fmt"
-	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/goroutine_pool.v7"
 	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"

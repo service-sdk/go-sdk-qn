@@ -2,8 +2,8 @@ package kodo
 
 import (
 	"encoding/json"
-	"github.com/service-sdk/go-sdk-qn/api.v7/common"
-	"github.com/service-sdk/go-sdk-qn/x/url.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/common"
+	"github.com/service-sdk/go-sdk-qn/v2/x/url.v7"
 	"strconv"
 	"strings"
 	"time"

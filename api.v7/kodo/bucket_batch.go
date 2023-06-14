@@ -2,7 +2,7 @@ package kodo
 
 import (
 	"context"
-	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/goroutine_pool.v7"
 )
 
 // Batch 批量操作

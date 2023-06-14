@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"context"
-	"github.com/service-sdk/go-sdk-qn/x/log.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/log.v7"
 )
 
 const logKey = "X-Log"

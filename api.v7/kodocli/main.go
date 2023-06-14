@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/service-sdk/go-sdk-qn/api.v7/common"
-	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/api.v7/common"
+	"github.com/service-sdk/go-sdk-qn/v2/x/rpc.v7"
 )
 
 type FileType = common.FileType

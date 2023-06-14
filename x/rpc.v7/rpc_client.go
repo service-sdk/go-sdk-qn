@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"github.com/service-sdk/go-sdk-qn/x/xlog.v8"
+	"github.com/service-sdk/go-sdk-qn/v2/x/xlog.v8"
 	"io"
 	"log"
 	"net/http"

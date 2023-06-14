@@ -7,7 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/service-sdk/go-sdk-qn/x/xlog.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/x/xlog.v7"
 )
 
 // ----------------------------------------------------------

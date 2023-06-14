@@ -1,6 +1,6 @@
 package kodo
 
-import "github.com/service-sdk/go-sdk-qn/api.v7/common"
+import "github.com/service-sdk/go-sdk-qn/v2/api.v7/common"
 
 type FileType = common.FileType
 type PutPolicy = common.PutPolicy
