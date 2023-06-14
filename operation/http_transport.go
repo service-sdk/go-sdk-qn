@@ -8,24 +8,27 @@ import (
 )
 
 var (
-	httpClientTransport *http.Transport
-	once                sync.Once
+	httpClientTransport      *http.Transport
+	config                   *Config
+	httpClientTransportMutex sync.Mutex
 )
 
-func getHttpClientTransport(config *Config) *http.Transport {
-	once.Do(func() {
-		dialer := net.Dialer{
-			Timeout:   buildDurationByMs(config.DialTimeoutMs, DefaultConfigDialTimeoutMs),
-			KeepAlive: 30 * time.Second,
-		}
+func getHttpClientTransport(cfg *Config) *http.Transport {
+	httpClientTransportMutex.Lock()
+	defer httpClientTransportMutex.Unlock()
+	if cfg != config {
+		config = cfg
 		httpClientTransport = &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           dialer.DialContext,
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: net.Dialer{
+				Timeout:   buildDurationByMs(config.DialTimeoutMs, DefaultConfigDialTimeoutMs),
+				KeepAlive: 30 * time.Second,
+			}.DialContext,
 			MaxIdleConns:          100,
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		}
-	})
+	}
 	return httpClientTransport
 }
