@@ -15,7 +15,7 @@ var (
 func getHttpClientTransport(config *Config) *http.Transport {
 	once.Do(func() {
 		dialer := net.Dialer{
-			Timeout:   time.Duration(config.DialTimeoutMs) * time.Millisecond,
+			Timeout:   buildDurationByMs(config.DialTimeoutMs, DefaultConfigDialTimeoutMs),
 			KeepAlive: 30 * time.Second,
 		}
 		httpClientTransport = &http.Transport{
