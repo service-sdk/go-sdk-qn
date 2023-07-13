@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
-	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
-	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 	"io"
 	"net/http"
 	"os"
@@ -15,6 +12,10 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/service-sdk/go-sdk-qn/api.v7/auth/qbox"
+	"github.com/service-sdk/go-sdk-qn/x/goroutine_pool.v7"
+	"github.com/service-sdk/go-sdk-qn/x/rpc.v7"
 )
 
 type singleClusterDownloader struct {
@@ -285,7 +286,7 @@ func generateRange(offset, size int64) string {
 	if offset == -1 {
 		return fmt.Sprintf("bytes=-%d", size)
 	}
-	return fmt.Sprintf("bytes=%d-%d", offset, offset+size)
+	return fmt.Sprintf("bytes=%d-%d", offset, offset+size-1)
 }
 
 const PathError = -1
