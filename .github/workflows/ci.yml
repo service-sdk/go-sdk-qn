@@ -16,13 +16,7 @@ jobs:
         env:
           QINIU_ACCESS_KEY: ${{ secrets.QINIU_ACCESS_KEY }}
           QINIU_SECRET_KEY: ${{ secrets.QINIU_SECRET_KEY }}
-          QINIU_TEST_UP_HOSTS: ${{ secrets.QINIU_TEST_UP_HOSTS }}
-          QINIU_TEST_RSF_HOSTS: ${{ secrets.QINIU_TEST_RSF_HOSTS }}
-          QINIU_TEST_RS_HOSTS: ${{ secrets.QINIU_TEST_RS_HOSTS }}
-          QINIU_TEST_API_SERVER_HOSTS: ${{ secrets.QINIU_TEST_API_SERVER_HOSTS }}
-          QINIU_TEST_IO_HOSTS: ${{ secrets.QINIU_TEST_IO_HOSTS }}
           QINIU_TEST_UC_HOSTS: ${{ secrets.QINIU_TEST_UC_HOSTS }}
           QINIU_TEST_BUCKET: ${{ secrets.QINIU_TEST_BUCKET }}
-          QINIU_TEST_DOMAIN: ${{ secrets.QINIU_TEST_DOMAIN }}
           QINIU_KODO_TEST: "on"
         run: go test ./syncdata/operation
