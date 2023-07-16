@@ -18,12 +18,13 @@ func getHttpClientTransport(cfg *Config) *http.Transport {
 	defer httpClientTransportMutex.Unlock()
 	if cfg != config {
 		config = cfg
+		dialer := net.Dialer{
+			Timeout:   buildDurationByMs(config.DialTimeoutMs, DefaultConfigDialTimeoutMs),
+			KeepAlive: 30 * time.Second,
+		}
 		httpClientTransport = &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: net.Dialer{
-				Timeout:   buildDurationByMs(config.DialTimeoutMs, DefaultConfigDialTimeoutMs),
-				KeepAlive: 30 * time.Second,
-			}.DialContext,
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
 			MaxIdleConns:          100,
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
