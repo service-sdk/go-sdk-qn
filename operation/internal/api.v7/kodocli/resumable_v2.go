@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/limit"
 	"io"
 	"io/ioutil"
 	"math"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/limit"
 
 	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/httputil.v1"
 	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/xlog.v8"
@@ -213,7 +214,7 @@ func (p Uploader) upload(ctx context.Context, ret interface{}, uptoken, key stri
 					partUpErrLock.Lock()
 					partUpErr = err
 					partUpErrLock.Unlock()
-					elog.Error(xl.ReqId(), "uploadPartErr:", partNum, err)
+					elog.Errorf("[%s] uploadPartErr: partNum=%d, err=%s", xl.ReqId(), partNum, err)
 					cancel()
 					return
 				}
@@ -231,7 +232,7 @@ func (p Uploader) upload(ctx context.Context, ret interface{}, uptoken, key stri
 				partUpErrLock.Lock()
 				partUpErr = err
 				partUpErrLock.Unlock()
-				elog.Error(xl.ReqId(), "uploadPartErr:", partNum, err)
+				elog.Errorf("[%s] uploadPartErr: partNum=%d, err=%s", xl.ReqId(), partNum, err)
 				cancel()
 				return
 			}
@@ -292,7 +293,7 @@ func (p Uploader) adaptivePartSizeAndConcurrency(ctx context.Context, suggestedP
 	xl := xlog.FromContextSafe(ctx)
 
 	if suggestedPartSizeOrigin < PartSizeMin {
-		elog.Error(xl.ReqId(), "Suggested part size is too small:", suggestedPartSizeOrigin)
+		elog.Errorf("[%s] Suggested part size is too small: origin=%d", xl.ReqId(), suggestedPartSizeOrigin)
 		return p.UploadPartSize, p.Concurrency
 	}
 
@@ -302,7 +303,7 @@ func (p Uploader) adaptivePartSizeAndConcurrency(ctx context.Context, suggestedP
 	}
 	suggestedPartSize := suggestedPartSizeNotAligned / PartSizeAligned * PartSizeAligned
 	suggestedConcurrency := int(math.Ceil(float64(int64(p.Concurrency)*p.UploadPartSize) / float64(suggestedPartSize)))
-	elog.Info(xl.ReqId(), "Original suggested part size", suggestedPartSizeOrigin, " Suggested part size:", suggestedPartSize, " Suggested concurrency:", suggestedConcurrency)
+	elog.Infof("[%s] Original suggested part size: %d, Suggested part size: %d, Suggested concurrency: %d", xl.ReqId(), suggestedPartSizeOrigin, suggestedPartSize, suggestedConcurrency)
 	return suggestedPartSize, suggestedConcurrency
 }
 
@@ -455,13 +456,13 @@ func (p Uploader) uploadPartWithRetry(ctx context.Context, bucket, key string, h
 			if code == 509 { // 因为流量受限失败，不减少重试次数
 				failedUpHosts[upHost] = struct{}{}
 				failHostName(upHost)
-				elog.Warn(xl.ReqId(), "uploadPartRetryLater:", partNum, err)
+				elog.Warnf("[%s] uploadPartRetryLater: partNum=%d, err=%s", xl.ReqId(), partNum, err)
 				time.Sleep(time.Second * time.Duration(rand.Intn(9)+1))
 			} else if tryTimes > 1 && (code == 406 || code/100 != 4) {
 				failedUpHosts[upHost] = struct{}{}
 				failHostName(upHost)
 				tryTimes--
-				elog.Warn(xl.ReqId(), "uploadPartRetry:", partNum, err)
+				elog.Warnf("[%s] uploadPartRetry: partNum=%d, err=%s", xl.ReqId(), partNum, err)
 				time.Sleep(time.Second * 3)
 			} else {
 				succeedHostName(upHost)
@@ -486,14 +487,14 @@ func (p Uploader) completePartsWithRetry(ctx context.Context, ret interface{}, b
 		if err == nil || code/100 == 4 || code == 612 || code == 614 || code == 579 {
 			succeedHostName(upHost)
 			if code == 612 || code == 614 {
-				elog.Warn(xl.ReqId(), "completeParts:", err)
+				elog.Warnf("[%s] completeParts: err=%s", xl.ReqId(), err)
 				err = nil
 			}
 			break
 		} else {
 			failedUpHosts[upHost] = struct{}{}
 			failHostName(upHost)
-			elog.Error(xl.ReqId(), "completeParts:", err, code)
+			elog.Errorf("[%s] completeParts: err=%s, code=%d", xl.ReqId(), err, code)
 			time.Sleep(time.Second * 3)
 		}
 	}
@@ -517,7 +518,7 @@ func (p Uploader) deletePartsWithRetry(ctx context.Context, bucket, key string, 
 		} else {
 			failedUpHosts[upHost] = struct{}{}
 			failHostName(upHost)
-			elog.Error(xl.ReqId(), "deleteParts:", err)
+			elog.Errorf("[%s] deleteParts: err=%s", xl.ReqId(), err)
 			time.Sleep(time.Second * 3)
 		}
 	}
