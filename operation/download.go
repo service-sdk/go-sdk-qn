@@ -41,7 +41,7 @@ func NewDownloaderV2() *Downloader {
 		)
 		if concurrencyStr := os.Getenv("QINIU_MULTI_CLUSTERS_CONCURRENCY"); concurrencyStr != "" {
 			if concurrency, err = strconv.Atoi(concurrencyStr); err != nil {
-				elog.Warn("Invalid QINIU_MULTI_CLUSTERS_CONCURRENCY: ", err)
+				elog.Warnf("Invalid QINIU_MULTI_CLUSTERS_CONCURRENCY: err=%s", err)
 			}
 		}
 		return &Downloader{newMultiClusterDownloader(c, concurrency)}

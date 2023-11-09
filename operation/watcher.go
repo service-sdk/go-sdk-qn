@@ -54,7 +54,7 @@ func initGlobalWatcher() {
 					if !ok {
 						return
 					}
-					elog.Warn("global watcher error:", err)
+					elog.Warnf("global watcher error: err=%s", err)
 				}
 			}
 		}()
@@ -106,7 +106,7 @@ func _addToWatcher(path string) error {
 			if err := globalWatcher.Add(watchDir); err != nil {
 				globalWatchedDirs.Delete(watchDir)
 				globalWatchedFiles.Delete(path)
-				elog.Warn("add watch error:", watchDir, err)
+				elog.Warnf("add watch error: watchDir=%s, err=%s", watchDir, err)
 				return err
 			}
 		}
@@ -121,7 +121,7 @@ func _removeFromWatcher(path string) (err error) {
 		if gotCounter, loaded := globalWatchedDirs.Load(watchDir); loaded {
 			if atomic.AddInt64(gotCounter.(*int64), -1) <= 0 {
 				if err = globalWatcher.Remove(watchDir); err != nil {
-					elog.Warn("remove watch error:", watchDir, err)
+					elog.Warnf("remove watch error: watchDir=%s, err=%s", watchDir, err)
 				}
 				globalWatchedDirs.Delete(watchDir)
 			}

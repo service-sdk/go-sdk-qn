@@ -146,12 +146,12 @@ func (d *singleClusterDownloader) downloadCheckList(ctx context.Context, keys []
 						break
 					}
 					if stat.code == PathError {
-						elog.Info("path stat error ", k, err)
+						elog.Infof("path stat error: key=%s, err=%s", k, err)
 						break
 					}
 
 					if stat.code == HostError {
-						elog.Info("stat retry ", k, j, host, err)
+						elog.Infof("stat retry: key=%s, retried=%d, host=%s, err=%s", k, j, host, err)
 						failedIoHostsLock.RLock()
 						failedIoHosts[host] = struct{}{}
 						failedIoHostsLock.RUnlock()
@@ -236,7 +236,7 @@ func (d *singleClusterDownloader) downloadFileInner(key, path string, failedIoHo
 			return nil, err
 		}
 	} else if !os.IsNotExist(err) {
-		elog.Warn("open file error", err)
+		elog.Warnf("open file error: err=%s", err)
 		return nil, err
 	}
 
@@ -276,7 +276,7 @@ func (d *singleClusterDownloader) downloadFileInner(key, path string, failedIoHo
 		return nil, err
 	}
 	if ctLength != n {
-		elog.Warn("download length not equal", ctLength, n)
+		elog.Warnf("download length not equal: expected=%d, actual=%d", ctLength, n)
 	}
 	if _, err = f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
@@ -409,7 +409,7 @@ type wrapper struct {
 func (w *wrapper) Read(p []byte) (n int, err error) {
 	n, err = w.s.Read(p)
 	if err != nil && err != io.EOF {
-		elog.Info("read interrupt", w.host, err)
+		elog.Infof("read interrupt: host=%s, err=%s", w.host, err)
 	}
 	return
 }

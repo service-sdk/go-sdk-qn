@@ -17,19 +17,19 @@ func StartSimulateErrorServer(_ *Config) {
 }
 
 func handleConnection(conn net.Conn) {
-	elog.Info("close connection", conn.RemoteAddr())
+	elog.Infof("close connection: remoteAddr=%s", conn.RemoteAddr())
 	conn.Close()
 }
 
 func simulateConnectionError(addr string) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		elog.Info("listen failed", err)
+		elog.Infof("listen failed: err=%s", err)
 	}
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			elog.Info("accept error", err)
+			elog.Infof("accept error: err=%s", err)
 		}
 		go handleConnection(conn)
 	}
@@ -42,9 +42,9 @@ func (d *debug) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	seps := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	code, err := strconv.ParseUint(seps[0], 10, 64)
-	elog.Info("request is", path)
+	elog.Info("request is ", path)
 	if err != nil {
-		elog.Info("parse code failed", seps[0], err)
+		elog.Infof("parse code failed: path=%s, err=%s", seps[0], err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

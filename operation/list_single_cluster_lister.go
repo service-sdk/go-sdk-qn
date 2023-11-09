@@ -2,17 +2,18 @@ package operation
 
 import (
 	"context"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/auth/qbox"
-	kodo2 "github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodo"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/goroutine_pool.v7"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/httputil.v1"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/rpc.v7"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/auth/qbox"
+	kodo2 "github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodo"
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/goroutine_pool.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/httputil.v1"
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/rpc.v7"
 )
 
 type singleClusterLister struct {
@@ -176,7 +177,7 @@ func (l *singleClusterLister) renameByCallingRenameAPI(ctx context.Context, from
 		}
 		failedApiServerHosts[host] = struct{}{}
 		failHostName(host)
-		elog.Info("rename retry", i, host, err)
+		elog.Infof("rename retry: retried=%d, host=%d, err=%s", i, host, err)
 	}
 	return err
 }
@@ -193,14 +194,14 @@ func (l *singleClusterLister) moveTo(fromKey, toBucket, toKey string) (err error
 	for i := 0; i < 2; i++ {
 		host := l.nextRsHost(failedRsHosts)
 		bucket := l.newBucket(host, "", "")
-		err = bucket.MoveEx(nil, fromKey, toBucket, toKey)
+		err = bucket.MoveEx(context.Background(), fromKey, toBucket, toKey)
 		if !isServerError(err) {
 			succeedHostName(host)
 			return err
 		}
 		failedRsHosts[host] = struct{}{}
 		failHostName(host)
-		elog.Info("move retry", i, host, err)
+		elog.Infof("move retry: retried=%d, host=%d, err=%s", i, host, err)
 	}
 	return err
 }
@@ -210,14 +211,14 @@ func (l *singleClusterLister) copy(fromKey, toKey string) (err error) {
 	for i := 0; i < 2; i++ {
 		host := l.nextRsHost(failedRsHosts)
 		bucket := l.newBucket(host, "", "")
-		err = bucket.Copy(nil, fromKey, toKey)
+		err = bucket.Copy(context.Background(), fromKey, toKey)
 		if !isServerError(err) {
 			succeedHostName(host)
 			return err
 		}
 		failedRsHosts[host] = struct{}{}
 		failHostName(host)
-		elog.Info("copy retry", i, host, err)
+		elog.Infof("copy retry: retried=%d, host=%d, err=%s", i, host, err)
 	}
 	return err
 }
@@ -234,7 +235,7 @@ func (l *singleClusterLister) deleteByCallingDeleteAPI(ctx context.Context, key 
 		}
 		failedRsHosts[host] = struct{}{}
 		failHostName(host)
-		elog.Info("delete retry", i, host, err)
+		elog.Infof("delete retry: retried=%d, host=%s, err=%s", i, host, err)
 	}
 	return err
 }
@@ -317,7 +318,7 @@ func (l *singleClusterLister) listStatWithRetries(ctx context.Context, paths []s
 						failedRsHostsLock.Unlock()
 						failHostName(host)
 
-						elog.Info("batchDelete retry ", i, host, err)
+						elog.Infof("batchDelete retry: retried=%d, host=%s, err=%s", i, host, err)
 					}
 					// 重试2次都失败了，返回错误
 					return nil, err
@@ -576,7 +577,7 @@ func (l *singleClusterLister) deleteAsDeleteKeysWithRetries(ctx context.Context,
 						failedRsHostsLock.Unlock()
 						failHostName(host)
 
-						elog.Info("batchDelete retry ", i, host, err)
+						elog.Infof("batchDelete retry: retried=%d, host=%s, err=%s", i, host, err)
 					}
 					// 重试2次都失败了，返回错误
 					return nil, err
@@ -654,7 +655,7 @@ func (l *singleClusterLister) listPrefixToChannel(ctx context.Context, prefix st
 				if err != nil && err != io.EOF {
 					failedHosts[rsfHost] = struct{}{}
 					failHostName(rsfHost)
-					elog.Info("ListPrefix retry ", i, rsfHost, err)
+					elog.Infof("ListPrefix retry: retried=%d, host=%s, err=%s", i, rsfHost, err)
 					continue
 				}
 				succeedHostName(rsfHost)
@@ -782,7 +783,7 @@ func (l *singleClusterLister) copyKeysWithRetries(ctx context.Context, input []C
 						failedRsHostsLock.Unlock()
 						failHostName(host)
 
-						elog.Info("batchDelete retry ", i, host, err)
+						elog.Infof("batchDelete retry: retried=%d, host=%s, err=%s", i, host, err)
 					}
 					// 重试2次都失败了，返回错误
 					return nil, err
@@ -945,7 +946,7 @@ func (l *singleClusterLister) moveKeysWithRetries(ctx context.Context, input []M
 						failedRsHostsLock.Unlock()
 						failHostName(host)
 
-						elog.Info("batchMove retry ", i, host, err)
+						elog.Infof("batchMove retry: retried=%d, host=%s, err=%s", i, host, err)
 					}
 					// 重试2次都失败了，返回错误
 					return nil, err
@@ -1104,7 +1105,7 @@ func (l *singleClusterLister) renameKeysWithRetries(ctx context.Context, input [
 						failedRsHostsLock.Unlock()
 						failHostName(host)
 
-						elog.Info("batchRename retry ", i, host, err)
+						elog.Infof("batchRename retry: retried=%d, host=%s, err=%s", i, host, err)
 					}
 					// 重试2次都失败了，返回错误
 					return nil, err

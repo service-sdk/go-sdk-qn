@@ -246,14 +246,14 @@ lzRetry:
 		if code == 509 {
 			failedUpHosts[upHost] = struct{}{}
 			failHostName(upHost)
-			elog.Warn(xl.ReqId(), "formUploadRetryLater:", err)
+			elog.Warnf("[%s] formUploadRetryLater: err=%s", xl.ReqId(), err)
 			time.Sleep(time.Second * time.Duration(rand.Intn(9)+1))
 			goto lzRetry
 		} else if tryTimes > 1 && (code == 406 || code/100 != 4) {
 			failedUpHosts[upHost] = struct{}{}
 			failHostName(upHost)
 			tryTimes--
-			elog.Warn(xl.ReqId(), "formUploadRetry:", err)
+			elog.Warnf("[%s] formUploadRetry: err=%s", xl.ReqId(), err)
 			time.Sleep(time.Second * 3)
 			goto lzRetry
 		}
@@ -420,7 +420,7 @@ func (p Uploader) put2(ctx context.Context, ret interface{}, uptoken, key string
 	if key != "" {
 		url += "/key/" + base64.URLEncoding.EncodeToString([]byte(key))
 	}
-	elog.Debug("Put2", url)
+	elog.Debugf("Put2: url=%s", url)
 	req, err := http.NewRequest("POST", url, io.NewSectionReader(data, 0, size))
 	if err != nil {
 		failHostName(upHost)

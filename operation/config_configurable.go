@@ -47,7 +47,7 @@ func getCurrentConfigurable() Configurable {
 func initCurrentConfigurableOnce() {
 	configurable, envVal, err := _loadConfigurableFromEnvironmentVariable()
 	if err != nil {
-		elog.Warn("Init config from env failed", envVal, err)
+		elog.Warnf("Init config from env failed: env=%s, err=%s", envVal, err)
 		return
 	}
 
@@ -60,14 +60,14 @@ func initCurrentConfigurableOnce() {
 func reloadCurrentConfigurable() {
 	configurable, envVal, err := _loadConfigurableFromEnvironmentVariable()
 	if err != nil {
-		elog.Warn("Reload config from env failed", envVal, err)
+		elog.Warn("Reload config from env failed: env=%s, err=%s", envVal, err)
 		return
 	}
 
 	globalConfigurableRwLock.Lock()
 	defer globalConfigurableRwLock.Unlock()
 	globalConfigurable = configurable
-	elog.Info("Reload config from env", configurable)
+	elog.Info("Reload config from env: config=%#v", configurable)
 	_ensureWatchesOrUnwatchAll(configurable)
 }
 

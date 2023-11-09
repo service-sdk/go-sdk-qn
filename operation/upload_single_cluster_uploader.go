@@ -5,14 +5,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/auth/qbox"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodo"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodocli"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/auth/qbox"
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodo"
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/api.v7/kodocli"
 )
 
 type singleClusterUploader struct {
@@ -81,7 +82,7 @@ func (p *singleClusterUploader) makeUptoken(policy *kodo.PutPolicy, expires int)
 func (p *singleClusterUploader) uploadData(data []byte, key string) (err error) {
 	t := time.Now()
 	defer func() {
-		elog.Info("up time ", key, time.Now().Sub(t))
+		elog.Infof("up time: key=%s, elapsed=%v", key, time.Since(t))
 	}()
 	key = strings.TrimPrefix(key, "/")
 	policy := kodo.PutPolicy{Scope: p.bucket + ":" + key}
@@ -92,7 +93,7 @@ func (p *singleClusterUploader) uploadData(data []byte, key string) (err error) 
 		if err == nil {
 			break
 		}
-		elog.Info("small upload retry", i, err)
+		elog.Infof("small upload retry: retried=%d, err=%s", i, err)
 	}
 	return
 }
@@ -100,7 +101,7 @@ func (p *singleClusterUploader) uploadData(data []byte, key string) (err error) 
 func (p *singleClusterUploader) uploadDataReader(data io.ReaderAt, size int, key string) (err error) {
 	t := time.Now()
 	defer func() {
-		elog.Info("up time ", key, time.Now().Sub(t))
+		elog.Infof("up time: key=%s, elapsed=%v", key, time.Since(t))
 	}()
 	key = strings.TrimPrefix(key, "/")
 	policy := kodo.PutPolicy{
@@ -116,7 +117,7 @@ func (p *singleClusterUploader) uploadDataReader(data io.ReaderAt, size int, key
 		if err == nil {
 			break
 		}
-		elog.Info("small upload retry", i, err)
+		elog.Infof("small upload retry: retried=%d, err=%s", i, err)
 	}
 	return
 }
@@ -124,7 +125,7 @@ func (p *singleClusterUploader) uploadDataReader(data io.ReaderAt, size int, key
 func (p *singleClusterUploader) upload(file string, key string) (err error) {
 	t := time.Now()
 	defer func() {
-		elog.Info("up time ", key, time.Now().Sub(t))
+		elog.Infof("up time: key=%s, elapsed=%v", key, time.Since(t))
 	}()
 	key = strings.TrimPrefix(key, "/")
 	policy := kodo.PutPolicy{
@@ -134,14 +135,14 @@ func (p *singleClusterUploader) upload(file string, key string) (err error) {
 
 	f, err := os.Open(file)
 	if err != nil {
-		elog.Info("open file failed: ", file, err)
+		elog.Info("open file failed: file=%s, err=%s", file, err)
 		return err
 	}
 	defer f.Close()
 
 	fInfo, err := f.Stat()
 	if err != nil {
-		elog.Info("get file stat failed: ", err)
+		elog.Info("get file stat failed: err=%s", err)
 		return err
 	}
 
@@ -153,7 +154,7 @@ func (p *singleClusterUploader) upload(file string, key string) (err error) {
 			if err == nil {
 				break
 			}
-			elog.Info("small upload retry", i, err)
+			elog.Infof("small upload retry: retried=%d, err=%s", i, err)
 		}
 		return
 	}
@@ -161,12 +162,12 @@ func (p *singleClusterUploader) upload(file string, key string) (err error) {
 	for i := 0; i < 3; i++ {
 		err = uploader.Upload(context.Background(), nil, upToken, key, newReaderAtNopCloser(f), fInfo.Size(), nil,
 			func(partIdx int, etag string) {
-				elog.Info("callback", partIdx, etag)
+				elog.Infof("callback: partNum=%d, etag=%s", partIdx, etag)
 			})
 		if err == nil {
 			break
 		}
-		elog.Info("part upload retry", i, err)
+		elog.Infof("part upload retry: retried=%d, err=%s", i, err)
 	}
 	return
 }
@@ -174,7 +175,7 @@ func (p *singleClusterUploader) upload(file string, key string) (err error) {
 func (p *singleClusterUploader) uploadReader(reader io.Reader, key string) (err error) {
 	t := time.Now()
 	defer func() {
-		elog.Info("up time ", key, time.Now().Sub(t))
+		elog.Infof("up time: key=%s, elapsed=%v", key, time.Since(t))
 	}()
 	key = strings.TrimPrefix(key, "/")
 	policy := kodo.PutPolicy{
@@ -207,14 +208,14 @@ func (p *singleClusterUploader) uploadReader(reader io.Reader, key string) (err 
 			if err == nil {
 				break
 			}
-			elog.Info("small upload retry", i, err)
+			elog.Infof("small upload retry: retried=%d, err=%s", i, err)
 		}
 		return
 	}
 
 	err = uploader.StreamUpload(context.Background(), nil, upToken, key, io.MultiReader(bytes.NewReader(firstPart), bufReader),
 		func(partIdx int, etag string) {
-			elog.Info("callback", partIdx, etag)
+			elog.Infof("callback: partNum=%d, etag=%s", partIdx, etag)
 		})
 	return err
 }

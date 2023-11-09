@@ -117,19 +117,19 @@ func (p Uploader) resumableBput(
 				extra.Notify(blkIdx, blkSize, ret)
 				continue
 			}
-			elog.Warn(xl.ReqId, "ResumableBlockput: invalid checksum, retry")
+			elog.Warnf("[%s] ResumableBlockput: invalid checksum, retry", xl.ReqId)
 			err = ErrUnmatchedChecksum
 		} else {
 			if ei, ok := err.(*rpc.ErrorInfo); ok && ei.Code == InvalidCtx {
 				ret.Ctx = "" // reset
-				elog.Warn(xl.ReqId, "ResumableBlockput: invalid ctx, please retry")
+				elog.Warnf("[%s] ResumableBlockput: invalid ctx, please retry", xl.ReqId)
 				return
 			}
-			elog.Warn(xl.ReqId, "ResumableBlockput: bput failed -", err)
+			elog.Warnf("[%s] ResumableBlockput: bput failed: err=%s", xl.ReqId, err)
 		}
 		if tryTimes > 1 {
 			tryTimes--
-			elog.Info(xl.ReqId, "ResumableBlockput retrying ...")
+			elog.Infof("[%s] ResumableBlockput retrying ...", xl.ReqId)
 			goto lzRetry
 		}
 		break

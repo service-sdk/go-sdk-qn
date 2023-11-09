@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/xlog.v8"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/xlog.v8"
 
 	. "context"
 )
@@ -198,8 +200,26 @@ func (r *ErrorInfo) ErrorDetail() string {
 }
 
 func (r *ErrorInfo) Error() string {
+	var segments []string
 
-	return r.Err
+	if r.Reqid != "" {
+		segments = append(segments, fmt.Sprintf("[ReqId=%s]", r.Reqid))
+	}
+	if r.Key != "" {
+		segments = append(segments, fmt.Sprintf("[Key=%s]", r.Key))
+	}
+	if r.Errno != 0 {
+		segments = append(segments, fmt.Sprintf("[Errno=%d]", r.Errno))
+	}
+	if r.Err == "" {
+		segments = append(segments, fmt.Sprintf("Unexpected Code: %d", r.Code))
+	} else {
+		if r.Code != 0 {
+			segments = append(segments, fmt.Sprintf("[Code=%d]", r.Code))
+		}
+		segments = append(segments, r.Err)
+	}
+	return strings.Join(segments, " ")
 }
 
 func (r *ErrorInfo) RpcError() (code, errno int, key, err string) {

@@ -2,13 +2,12 @@ package operation
 
 import (
 	"context"
-	"encoding/json"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/goroutine_pool.v7"
-	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/httputil.v1"
-	"io"
 	"os"
 	"strconv"
 	"sync"
+
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/goroutine_pool.v7"
+	"github.com/service-sdk/go-sdk-qn/v2/operation/internal/x/httputil.v1"
 )
 
 // Lister 列举器
@@ -35,7 +34,7 @@ func NewListerV2() *Lister {
 		)
 		if concurrencyStr := os.Getenv("QINIU_MULTI_CLUSTERS_CONCURRENCY"); concurrencyStr != "" {
 			if concurrency, err = strconv.Atoi(concurrencyStr); err != nil {
-				elog.Warn("Invalid QINIU_MULTI_CLUSTERS_CONCURRENCY: ", err)
+				elog.Warnf("Invalid QINIU_MULTI_CLUSTERS_CONCURRENCY: err=%s", err)
 			}
 		}
 		return &Lister{newMultiClusterLister(c, concurrency)}
@@ -357,17 +356,6 @@ func (l *Lister) deleteDirectory(ctx context.Context, consumerCount int, dir str
 		return nil, err
 	}
 	return deleteErrors, nil
-}
-
-func (l *Lister) batchStab(r io.Reader) []*FileStat {
-	j := json.NewDecoder(r)
-	var fl []string
-	err := j.Decode(&fl)
-	if err != nil {
-		elog.Error(err)
-		return nil
-	}
-	return l.ListStat(fl)
 }
 
 func isServerError(err error) bool {

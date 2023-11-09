@@ -238,10 +238,10 @@ func (p Uploader) rput(
 				failHostName(upHost)
 				if tryTimes > 1 {
 					tryTimes--
-					elog.Info(xl.ReqId, "resumable.Put retrying ...")
+					elog.Infof("[%s] resumable.Put retrying ...", xl.ReqId)
 					goto lzRetry
 				}
-				elog.Warn(xl.ReqId, "resumable.Put", blkIdx, "failed:", err)
+				elog.Warnf("[%s] resumable.Put failed: blkIdx=%d err=%s", xl.ReqId, blkIdx, err)
 				extra.NotifyErr(blkIdx, blkSize1, err)
 				nfails++
 			} else {
